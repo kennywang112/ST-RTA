@@ -5,3 +5,7 @@ Data Sources:
 1. [Youbike](https://www.youbike.com.tw/region/taipei/stations/list/)
 2. [Parking Lot](https://data.gov.tw/suggests/136651?utm_source=chatgpt.com)
 3. [Taipei MRT](https://data.taipei/dataset/detail?id=cfa4778c-62c1-497b-b704-756231de348b)
+
+## Adding Attributes
+1. Attractions
+2. School Data
