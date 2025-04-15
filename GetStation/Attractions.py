@@ -39,4 +39,4 @@ df = pd.DataFrame(data_list)
 print(df.shape)
 # filter decimal_coords not empty
 df = df[df['decimal_coords'].astype(bool)]
-df[['attraction', 'decimal_coords']].to_csv('../ComputedData/Attractions.csv', index=False, encoding='utf-8-sig')
+df[['attraction', 'decimal_coords']].to_csv('./ComputedData/Attractions.csv', index=False, encoding='utf-8')
