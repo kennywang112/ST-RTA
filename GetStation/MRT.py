@@ -1,3 +1,4 @@
+import os
 import json
 import pandas as pd
 
@@ -5,6 +6,8 @@ data_lst = [
     'kaoshiung', 'newtaipei', 'taichung',
     'taipei', 'taoyuan', 'trtcmg'
 ]
+
+os.makedirs("./ComputedData/MRT", exist_ok=True)
 
 def get_data(city):
 
@@ -22,5 +25,10 @@ def get_data(city):
 
     dft.to_csv(f"./ComputedData/MRT/{city}.csv", index=False, encoding='utf-8')
 
-for city in data_lst:
-    get_data(city)
+    dft['City'] = city
+    return dft
+
+all_dfs = [get_data(city) for city in data_lst]
+combined_df = pd.concat(all_dfs, ignore_index=True)
+
+combined_df.to_csv(f"./ComputedData/MRT/full_mrt.csv", index=False, encoding='utf-8')
