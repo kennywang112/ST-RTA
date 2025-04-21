@@ -5,13 +5,15 @@ from shapely.geometry import Point
 
 mrt = pd.read_csv('./ComputedData/MRT/full_mrt.csv')
 youbike = pd.read_csv('./ComputedData/YouBike/full_youbike.csv')
+parkinglot = pd.read_csv('./ComputedData/Parkinglot/full_mrt.csv')
 
 dataA2 = pd.read_csv("./Data/Accident/A2.csv", low_memory=False)
 dataA1 = pd.read_csv("./Data/Accident/A1.csv")
 
 facilities = {
     'mrt': mrt,
-    'youbike': youbike
+    'youbike': youbike,
+    'parkinglot': parkinglot
 }
 
 os.makedirs("./ComputedData/Accident", exist_ok=True)
