@@ -35,4 +35,4 @@ def get_data(city):
 all_dfs = [get_data(city) for city in data_lst]
 combined_df = pd.concat(all_dfs, ignore_index=True)
 
-combined_df.to_csv(f"./ComputedData/Parkinglot/full_mrt.csv", index=False, encoding='utf-8')
+combined_df.to_csv(f"./ComputedData/Parkinglot/full_parkinglot.csv", index=False, encoding='utf-8')

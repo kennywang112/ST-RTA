@@ -5,7 +5,7 @@ from shapely.geometry import Point
 
 mrt = pd.read_csv('./ComputedData/MRT/full_mrt.csv')
 youbike = pd.read_csv('./ComputedData/YouBike/full_youbike.csv')
-parkinglot = pd.read_csv('./ComputedData/Parkinglot/full_mrt.csv')
+parkinglot = pd.read_csv('./ComputedData/Parkinglot/full_parkinglot.csv')
 
 dataA2 = pd.read_csv("./Data/Accident/A2.csv", low_memory=False)
 dataA1 = pd.read_csv("./Data/Accident/A1.csv")
@@ -45,5 +45,5 @@ def Calculate(X, facility_dict, name):
     gdf_data.drop(columns=['geometry', 'buffer'], inplace=True)
     gdf_data.to_csv(f'./ComputedData/Accident/{name}.csv', index=False, encoding='utf-8')
 
-Calculate(dataA1, facilities, 'DataA1_with_MRT_Youbike')
-Calculate(dataA2, facilities, 'DataA2_with_MRT_Youbike')
+Calculate(dataA1, facilities, 'DataA1_with_MRT_Youbike_Parkinglot')
+Calculate(dataA2, facilities, 'DataA2_with_MRT_Youbike_Parkinglot')
