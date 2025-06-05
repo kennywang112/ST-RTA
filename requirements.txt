@@ -1,0 +1,5 @@
+geopandas==1.1.0
+matplotlib==3.9.2
+shapely==2.1.1
+libpysal==4.13.0
+esda==2.7.0

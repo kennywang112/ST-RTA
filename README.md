@@ -10,7 +10,7 @@ Reanalyze it starting from [here](https://github.com/kennywang112/TrafficTDApyth
 2. [Parking Lot](https://data.gov.tw/suggests/136651?utm_source=chatgpt.com)
 3. [Metro Rapid Transit](https://tdx.transportdata.tw/api-service/swagger/basic/945f57da-f29d-4dfd-94ec-c35d9f62be7d#/): Transport Data Exchange(捷運站出入口基本資料)
 4. [Youbike](https://tdx.transportdata.tw/api-service/swagger/basic/945f57da-f29d-4dfd-94ec-c35d9f62be7d#/): 自行車租借站位資料
-
+5. [Taiwan shape](https://data.gov.tw/dataset/7442)
 
 ### Additional Attributes
 1. Attractions
@@ -19,7 +19,8 @@ Reanalyze it starting from [here](https://github.com/kennywang112/TrafficTDApyth
 
 ### Update
 Youbike, MRT, Attractions data sources installed in 2025/04/15<br/>
-Parkinglot data sources installed in 2025/04/21
+Parkinglot data sources installed in 2025/04/21<br/>
+Taiwan shape 2025/06/06
 
 ### Paper
 1. Gedamu, W. T., Plank-Wiedenbeck, U., & Wodajo, B. T. (2024). A spatial autocorrelation analysis of road traffic crash by severity using Moran’s I spatial statistics: A comparative study of Addis Ababa and Berlin cities. Accident Analysis & Prevention, 200, 107535.
