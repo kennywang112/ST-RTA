@@ -1,11 +1,12 @@
-
+import json
+import folium
 import numpy as np
 from esda import Moran, G_Local
 import geopandas as gpd
 import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
 from shapely.geometry import Polygon
-from libpysal.weights import DistanceBand
+from libpysal.weights import DistanceBand, Queen
 
 def create_hexagon(center_x, center_y, size):
     angles = np.linspace(0, 2 * np.pi, 7)
@@ -67,6 +68,7 @@ def get_grid(data, hex_size, threshold=0):
 
     print('get grid')
     hex_grid = gpd.GeoDataFrame(geometry=hexagons_shifted, crs='EPSG:4326')
+    hex_grid = hex_grid.to_crs(gdf.crs)
     # 將事故點分配到 hexagon
     joined = gpd.sjoin(gdf, hex_grid, how='left', predicate='within')
     # 統計每個 hexagon 的事故數量
@@ -74,6 +76,7 @@ def get_grid(data, hex_size, threshold=0):
     # 沒有事故的 hexagon 設為 0
     hex_grid['num_accidents'] = hex_grid['num_accidents'].fillna(0).astype(int)
     hex_grid = hex_grid[hex_grid['num_accidents'] > threshold]
+    hex_grid.to_crs(epsg=3826, inplace=True)
 
     return hex_grid
 
@@ -98,16 +101,21 @@ def specific_polygon(df, taiwan, county):
     # 如果要拿回原本的欄位：
     specific_A2 = points_in_taiwan.drop(columns=['index_right'])  # sjoin多的欄位可以丟掉
     print(specific_A2.shape)
+    taiwan_specific.to_crs(epsg=3826, inplace=True)  # 轉到公尺座標系
 
     return specific_A2, taiwan_specific
 
-def calculate_gi(best_distance, grid):
+def calculate_gi(best_distance, grid, adjacency=False):
 
     # 建立鄰接矩陣（以中心點）
     centroids = grid.centroid
     coords = np.array(list(zip(centroids.x, centroids.y)))
 
-    w = DistanceBand(coords, threshold=best_distance, binary=True, silence_warnings=True)
+    if adjacency:
+        w = Queen.from_dataframe(grid)
+    else:
+        w = DistanceBand(coords, threshold=best_distance, binary=True, silence_warnings=True)
+
     w.transform = 'r'
     y = grid['num_accidents'].values
     g_local = G_Local(y, w)
@@ -121,13 +129,12 @@ def calculate_gi(best_distance, grid):
     grid.loc[(grid['GiZScore'] >= -2.58) & (grid['GiZScore'] < -1.96), 'hotspot'] = 'Coldspot 95%'
     grid.loc[(grid['GiZScore'] >= -1.96) & (grid['GiZScore'] < -1.65), 'hotspot'] = 'Coldspot 90%'
 
-    print(grid[['num_accidents', 'GiZScore']].head())
-
     return grid
 
 def plot_hex_grid(specific_A2, taiwan_specific, threshold=0, hex_size=0.01):
 
-    hex_grid = get_grid(specific_A2, hex_size)
+    hex_grid = get_grid(specific_A2, hex_size, threshold)
+    hex_grid = hex_grid[hex_grid.intersects(taiwan_specific.unary_union)]
 
     fig, ax = plt.subplots(figsize=(10, 10))
     taiwan_specific.plot(ax=ax, color='white', edgecolor='black')  # 底圖：台灣行政區
@@ -177,6 +184,38 @@ def incremental_spatial_autocorrelation(gdf, value_col, min_dist=1000, max_dist=
         p_values.append(moran.p_norm)
 
     return thresholds, moran_I, z_scores, p_values
+
+def incremental_spatial_autocorrelation_knn(gdf, value_col, min_k=2, max_k=50, step=1):
+    """
+    gdf: CRS (meter)。
+    value_col: 你要做 spatial autocorrelation 的欄位，如 num_accidents。
+    min_k: 最小鄰居數。
+    max_k: 最大鄰居數。
+    step: 每次增加幾個鄰居。
+    """
+
+    ks = np.arange(min_k, max_k + step, step)
+
+    moran_I = []
+    z_scores = []
+    p_values = []
+
+    centroids = gdf.centroid
+    coords = np.array(list(zip(centroids.x, centroids.y)))
+    y = gdf[value_col].values
+
+    for k in ks:
+        print(f"Processing k = {k} neighbors")
+        w = KNN.from_array(coords, k=k)
+        w.transform = 'r'  # row-standardized
+        moran = Moran(y, w)
+        print(moran.z_norm)
+
+        moran_I.append(moran.I)
+        z_scores.append(moran.z_norm)  # ArcGIS 用的是 Z-score
+        p_values.append(moran.p_norm)
+
+    return ks, moran_I, z_scores, p_values
 
 def get_isa_plot(df, threshold=0, hex_size=0.01):
 
@@ -267,3 +306,51 @@ def plot_gi(taiwan, grid):
     plt.title('Hotspot Analysis (Getis-Ord Gi*) - 90%, 95%, 99% Confidence Levels')
     plt.axis('off')
     plt.show()
+
+def plot_map(data, grid, gi=False):
+
+    grid_json = json.loads(grid.to_json())
+
+    # 地圖中心點
+    center = [data['緯度'].mean(), data['經度'].mean()]
+
+    # 建立底圖
+    m = folium.Map(location=center, zoom_start=10, tiles='CartoDB positron')
+
+    if gi:
+        # 加入格網
+        folium.GeoJson(
+            grid_json,
+            style_function=lambda feature: {
+                'fillColor': '#ff0000' if feature['properties']['hotspot'] == 'Hotspot 99%' else
+                            '#ff6666' if feature['properties']['hotspot'] == 'Hotspot 95%' else
+                            '#ffe6e6' if feature['properties']['hotspot'] == 'Hotspot 90%' else
+                            '#cccccc' if feature['properties']['hotspot'] == 'Not Significant' else
+                            '#6666ff' if feature['properties']['hotspot'] == 'Coldspot 90%' else
+                            '#3399ff' if feature['properties']['hotspot'] == 'Coldspot 95%' else
+                            '#0000ff',
+                'color': 'grey',
+                'weight': 0.5,
+                'fillOpacity': 0.6
+            }
+        ).add_to(m)
+    else:
+
+        folium.GeoJson(
+            grid_json,
+            style_function=lambda feature: {
+                'fillColor': '#FFEDA0' if feature['properties']['num_accidents'] < 100 else
+                            '#FEB24C' if feature['properties']['num_accidents'] < 500 else
+                            '#F03B20',
+                'color': 'grey',
+                'weight': 0.5,
+                'fillOpacity': 0.6
+            },
+            tooltip=folium.GeoJsonTooltip(
+                fields=['num_accidents'],
+                aliases=['Accidents:'],
+                localize=True
+            )
+        ).add_to(m)
+
+    return m
