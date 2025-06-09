@@ -6,7 +6,7 @@ import geopandas as gpd
 import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
 from shapely.geometry import Polygon
-from libpysal.weights import DistanceBand, Queen
+from libpysal.weights import DistanceBand, Queen, KNN
 
 def create_hexagon(center_x, center_y, size):
     angles = np.linspace(0, 2 * np.pi, 7)
@@ -22,6 +22,10 @@ def get_grid(data, hex_size, threshold=0):
     hex_size = 1  # 度數，1 度 ≈ 111 公里
     """
     gdf = gpd.GeoDataFrame(data, geometry=gpd.points_from_xy(data['經度'], data['緯度']))
+    if gdf.crs is None:
+        gdf.set_crs(epsg=4326, inplace=True)
+    else:
+        gdf = gdf.to_crs(epsg=4326)
 
     gdf = gdf[
         (gdf['經度'] >= 119.7) & (gdf['經度'] <= 122.1) &
@@ -105,13 +109,15 @@ def specific_polygon(df, taiwan, county):
 
     return specific_A2, taiwan_specific
 
-def calculate_gi(best_distance, grid, adjacency=False):
+def calculate_gi(best_distance, grid, adjacency=None):
 
     # 建立鄰接矩陣（以中心點）
     centroids = grid.centroid
     coords = np.array(list(zip(centroids.x, centroids.y)))
 
-    if adjacency:
+    if adjacency=='knn':
+        w = KNN.from_array(coords, k=best_distance)
+    elif adjacency=='queen':
         w = Queen.from_dataframe(grid)
     else:
         w = DistanceBand(coords, threshold=best_distance, binary=True, silence_warnings=True)
