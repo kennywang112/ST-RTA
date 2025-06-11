@@ -15,7 +15,7 @@ def create_hexagon(center_x, center_y, size):
         for angle in angles
     ])
 
-def get_grid(data, hex_size, threshold=0):
+def get_grid(data, specific_area, hex_size, threshold=0):
     """
     # hexagon 大小 (degree)
     # 台灣約395,144 km
@@ -32,7 +32,7 @@ def get_grid(data, hex_size, threshold=0):
         (gdf['緯度'] >= 21.8) & (gdf['緯度'] <= 25.4)
     ]
     # 計算範圍 (bounding box)
-    bounds = gdf.total_bounds  # (minx, miny, maxx, maxy)
+    bounds = specific_area.to_crs(epsg=4326).total_bounds  # (minx, miny, maxx, maxy)
     minx, miny, maxx, maxy = bounds
 
     # 六邊形的寬度和高度
@@ -139,7 +139,7 @@ def calculate_gi(best_distance, grid, adjacency=None):
 
 def plot_hex_grid(specific_A2, taiwan_specific, threshold=0, hex_size=0.01):
 
-    hex_grid = get_grid(specific_A2, hex_size, threshold)
+    hex_grid = get_grid(specific_A2, taiwan_specific, hex_size, threshold)
     hex_grid = hex_grid[hex_grid.intersects(taiwan_specific.unary_union)]
 
     fig, ax = plt.subplots(figsize=(10, 10))
@@ -153,7 +153,7 @@ def plot_hex_grid(specific_A2, taiwan_specific, threshold=0, hex_size=0.01):
         alpha=0.6,
         ax=ax
     )
-    plt.title('Hexagon Accident Counts (num_accidents > 0)')
+    plt.title('Hexagon Accident Counts')
     plt.axis('off')
     plt.show()
 
@@ -315,6 +315,7 @@ def plot_gi(taiwan, grid):
 
 def plot_map(data, grid, gi=False):
 
+    grid = grid[['hotspot', 'num_accidents', 'geometry']].copy()
     grid_json = json.loads(grid.to_json())
 
     # 地圖中心點
