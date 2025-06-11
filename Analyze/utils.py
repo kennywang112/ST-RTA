@@ -322,7 +322,7 @@ def plot_map(data, grid, gi=False):
     center = [data['緯度'].mean(), data['經度'].mean()]
 
     # 建立底圖
-    m = folium.Map(location=center, zoom_start=10, tiles='CartoDB positron')
+    m = folium.Map(location=center, zoom_start=10, tiles='OpenStreetMap')
 
     if gi:
         # 加入格網

@@ -1,3 +1,5 @@
+import json
+import folium
 import numpy as np
 import matplotlib.pyplot as plt
 from sklearn.preprocessing import StandardScaler
@@ -130,3 +132,29 @@ class LocalMoranAnalysis:
         plt.title('Moran Scatter Plot (KNN LISA, Standardized)')
         plt.legend()
         plt.show()
+
+    def plot_lisa_folium(self):
+
+        color_map = {
+            'High-High': '#8c1004',
+            'Low-Low': '#04468c',
+            'High-Low': '#f06e62',
+            'Low-High': '#65a8f0',
+            'Not Significant': '#c9c2c1'
+        }
+        grid_wgs = self.hex_grid.to_crs(epsg=4326)
+        grid_wgs = grid_wgs[['quadrant', 'num_accidents', 'geometry']].copy()
+        grid_json = json.loads(grid_wgs.to_json())
+        center = [grid_wgs.geometry.centroid.y.mean(), grid_wgs.geometry.centroid.x.mean()]
+        m = folium.Map(location=center, zoom_start=10, tiles='CartoDB Voyager')
+        folium.GeoJson(
+            grid_json,
+            style_function=lambda feature: {
+                'fillColor': color_map.get(feature['properties']['quadrant'], '#c9c2c1'),
+                'color': 'grey',
+                'weight': 0.1,
+                'fillOpacity': 0.5
+            },
+            tooltip=folium.GeoJsonTooltip(fields=['quadrant', 'num_accidents'])
+        ).add_to(m)
+        return m

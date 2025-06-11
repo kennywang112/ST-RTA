@@ -22,6 +22,14 @@ Youbike, MRT, Attractions data sources installed in 2025/04/15<br/>
 Parkinglot data sources installed in 2025/04/21<br/>
 Taiwan shape 2025/06/06
 
+
+### Env
+```shell
+conda create --name ST-RTA python=3.10
+conda activate ST-RTA
+pip install -r requirements.txt
+```
+
 ### Paper
 1. Gedamu, W. T., Plank-Wiedenbeck, U., & Wodajo, B. T. (2024). A spatial autocorrelation analysis of road traffic crash by severity using Moran’s I spatial statistics: A comparative study of Addis Ababa and Berlin cities. Accident Analysis & Prevention, 200, 107535.
 2. Shuai, Z., & Kwon, T. J. (2025). Analyzing Winter Crash Dynamics Using Spatial Analysis and Crash Frequency Prediction Models with SHAP Interpretability. Future Transportation, 5(1), 17.
