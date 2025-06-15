@@ -15,7 +15,7 @@ def create_hexagon(center_x, center_y, size):
         for angle in angles
     ])
 
-def get_grid(data, specific_area, hex_size, threshold=0):
+def get_grid(data, specific_area=None, hex_size=0.01, threshold=0):
     """
     # hexagon 大小 (degree)
     # 台灣約395,144 km
@@ -32,7 +32,10 @@ def get_grid(data, specific_area, hex_size, threshold=0):
         (gdf['緯度'] >= 21.8) & (gdf['緯度'] <= 25.4)
     ]
     # 計算範圍 (bounding box)
-    bounds = specific_area.to_crs(epsg=4326).total_bounds  # (minx, miny, maxx, maxy)
+    if specific_area:
+        bounds = specific_area.to_crs(epsg=4326).total_bounds  # (minx, miny, maxx, maxy)
+    else:
+        bounds = gdf.total_bounds
     minx, miny, maxx, maxy = bounds
 
     # 六邊形的寬度和高度
@@ -73,12 +76,19 @@ def get_grid(data, specific_area, hex_size, threshold=0):
     print('get grid')
     hex_grid = gpd.GeoDataFrame(geometry=hexagons_shifted, crs='EPSG:4326')
     hex_grid = hex_grid.to_crs(gdf.crs)
+
     # 將事故點分配到 hexagon
     joined = gpd.sjoin(gdf, hex_grid, how='left', predicate='within')
+
     # 統計每個 hexagon 的事故數量
     hex_grid['num_accidents'] = joined.groupby('index_right').size()
+    # 每個 hexagon 內事故的原始索引 list
+    hex_grid['accident_indices'] = hex_grid.index.map(lambda idx: list(joined.index[joined['index_right'] == idx]))
+
     # 沒有事故的 hexagon 設為 0
     hex_grid['num_accidents'] = hex_grid['num_accidents'].fillna(0).astype(int)
+    hex_grid['accident_indices'] = hex_grid['accident_indices'].apply(lambda x: x if isinstance(x, list) else [])
+
     hex_grid = hex_grid[hex_grid['num_accidents'] > threshold]
     hex_grid.to_crs(epsg=3826, inplace=True)
 
