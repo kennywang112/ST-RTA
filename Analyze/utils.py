@@ -80,13 +80,17 @@ def get_grid(data, specific_area=None, hex_size=0.01, threshold=0):
     # 將事故點分配到 hexagon
     joined = gpd.sjoin(gdf, hex_grid, how='left', predicate='within')
 
-    # 統計每個 hexagon 的事故數量
-    hex_grid['num_accidents'] = joined.groupby('index_right').size()
+    def calculate_weighted_accidents(group):
+        # 計算加權事故數量
+        return group.apply(lambda row: row['num_accidents'] * 2.714 if row['source'] == 'A1' else row['num_accidents'], axis=1).sum()
+
+    hex_grid['num_accidents'] = joined.groupby('index_right').apply(calculate_weighted_accidents)
+
     # 每個 hexagon 內事故的原始索引 list
     hex_grid['accident_indices'] = hex_grid.index.map(lambda idx: list(joined.index[joined['index_right'] == idx]))
 
     # 沒有事故的 hexagon 設為 0
-    hex_grid['num_accidents'] = hex_grid['num_accidents'].fillna(0).astype(int)
+    hex_grid['num_accidents'] = hex_grid['num_accidents'].fillna(0)#.astype(int)
     hex_grid['accident_indices'] = hex_grid['accident_indices'].apply(lambda x: x if isinstance(x, list) else [])
 
     hex_grid = hex_grid[hex_grid['num_accidents'] > threshold]
