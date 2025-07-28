@@ -2,6 +2,8 @@
 Reanalyze it starting from [here](https://github.com/kennywang112/TrafficTDApython), but apply spatial and temporal analysis techniques.
 **MacroCounty** and **MicroCounty** calculates nearest neighbor based on county, while **MacroGrid** and **MicroGrid** is based on Grid we generated.
 
+<img src="Framework.png" alt="Framework" width="400">
+
 ### Data Sources:
 1. [Youbike (deprecated)](https://data.gov.tw/suggests/136458)
 - [New Taipei](https://data.gov.tw/dataset/146969)
@@ -20,7 +22,6 @@ Reanalyze it starting from [here](https://github.com/kennywang112/TrafficTDApyth
 Youbike, MRT, Attractions data sources installed in 2025/04/15<br/>
 Parkinglot data sources installed in 2025/04/21<br/>
 Taiwan shape 2025/06/06
-
 
 ### Env
 ```shell
