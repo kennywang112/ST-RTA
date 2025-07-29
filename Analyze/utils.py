@@ -392,7 +392,7 @@ def plot_map(data, grid, gi=False, count=None):
                     color='#9a9af5',  # 邊框顏色
                     fill=True,
                     fill_color='#9a9af5',  # 填充顏色
-                    fill_opacity=0.6,
+                    fill_opacity=0.5,
                     tooltip=f"Count: {row[count]}"  # 提示顯示站點數量
                 ).add_to(m)
 

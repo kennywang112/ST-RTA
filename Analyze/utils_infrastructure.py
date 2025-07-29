@@ -69,8 +69,6 @@ def scatter_with_spearman(grid, x_col, y_col):
         y=y_col, 
         data=grid, 
         alpha=0.7,  # 散點透明度
-        size=y_col,  # 散點大小根據 y_col 動態調整
-        sizes=(20, 200),  # 散點大小範圍
         hue=y_col,  # 散點顏色根據 y_col 動態調整
         palette="viridis"  # 配色方案
     )
