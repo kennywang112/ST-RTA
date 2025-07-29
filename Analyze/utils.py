@@ -327,9 +327,10 @@ def plot_gi(taiwan, grid):
     plt.axis('off')
     plt.show()
 
-def plot_map(data, grid, gi=False):
-
-    grid = grid[['hotspot', 'num_accidents', 'geometry']].copy()
+def plot_map(data, grid, gi=False, count=None):
+    # grid = grid[['hotspot', 'num_accidents', 'mrt_count', 'geometry']].copy()
+    grid = grid.copy()
+    grid = grid.drop(columns=['centroid'], errors='ignore') # 確保不會有centroid欄位，無法被序列化
     grid_json = json.loads(grid.to_json())
 
     # 地圖中心點
@@ -364,7 +365,6 @@ def plot_map(data, grid, gi=False):
             }
         ).add_to(m)
     else:
-
         folium.GeoJson(
             grid_json,
             style_function=lambda feature: {
@@ -381,5 +381,19 @@ def plot_map(data, grid, gi=False):
                 localize=True
             )
         ).add_to(m)
+
+    if count is not None:
+        for _, row in grid.iterrows():
+            if row[count] > 0:  # 只顯示有站點的多邊形
+                centroid = row['geometry'].centroid  # 獲取多邊形的中心點
+                folium.CircleMarker(
+                    location=[centroid.y, centroid.x],  # 中心點的經緯度
+                    radius=row[count] * 1,  # 半徑根據特徵調整，放大 2 倍
+                    color='#9a9af5',  # 邊框顏色
+                    fill=True,
+                    fill_color='#9a9af5',  # 填充顏色
+                    fill_opacity=0.6,
+                    tooltip=f"Count: {row[count]}"  # 提示顯示站點數量
+                ).add_to(m)
 
     return m
