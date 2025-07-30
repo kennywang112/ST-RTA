@@ -25,7 +25,7 @@ def Calculate(X, facility_dict, name):
     gdf_data = gpd.GeoDataFrame(X, geometry='geometry', crs="EPSG:4326").to_crs(epsg=3826)
 
     # Step 2: 建立500公尺的範圍
-    gdf_data['buffer'] = gdf_data.geometry.buffer(500)
+    gdf_data['buffer'] = gdf_data.geometry.buffer(100)
     gdf_buffer = gdf_data.set_geometry('buffer')
 
     # Step 3: 每個設施資料逐一處理
@@ -39,11 +39,11 @@ def Calculate(X, facility_dict, name):
         counts = joined.groupby(joined.index).size()
 
         # 新增欄位: 該設施在 500 公尺內的數量
-        gdf_data[f'{label}_500m_count'] = gdf_data.index.map(counts).fillna(0).astype(int)
+        gdf_data[f'{label}_100m_count'] = gdf_data.index.map(counts).fillna(0).astype(int)
 
     # Step 4: 清理和儲存
     gdf_data.drop(columns=['geometry', 'buffer'], inplace=True)
     gdf_data.to_csv(f'./ComputedData/Accident/{name}.csv', index=False, encoding='utf-8')
 
-Calculate(dataA1, facilities, 'DataA1_with_MRT_Youbike_Parkinglot')
-Calculate(dataA2, facilities, 'DataA2_with_MRT_Youbike_Parkinglot')
+Calculate(dataA1, facilities, 'DataA1_with_MYP')
+Calculate(dataA2, facilities, 'DataA2_with_MYP')
