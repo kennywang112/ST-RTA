@@ -4,6 +4,26 @@ import pandas as pd
 from sklearn.metrics import average_precision_score, confusion_matrix
 device = torch.device("mps" if torch.backends.mps.is_available() else "cpu")
 
+def get_importance(model, df):
+    if model.__class__.__name__ == 'LogisticRegression':
+        importances = model.coef_[0]
+    else:
+        importances = model.feature_importances_
+
+    indices = np.argsort(importances)[::-1]
+    feature_names = df.columns
+
+    print('feature importance')
+    for i in indices:
+        print(f"{feature_names[i]}: {importances[i]:.4f}")
+
+    print('grouped feature importance')
+    fi_df = pd.DataFrame({'feature': feature_names, 'importance': importances})
+    fi_df['main_feature'] = fi_df['feature'].str.split('_').str[0]
+    grouped = fi_df.groupby('main_feature')['importance'].sum().sort_values(ascending=False)
+
+    print(grouped)
+
 def extract_features(
         grid, combined_data, select_group, rows
         ):
