@@ -4,7 +4,7 @@ import pandas as pd
 from sklearn.metrics import average_precision_score, confusion_matrix
 device = torch.device("mps" if torch.backends.mps.is_available() else "cpu")
 
-def get_importance(model, df):
+def get_importance(model, df, specific_col=None):
     if model.__class__.__name__ == 'LogisticRegression':
         importances = model.coef_[0]
     else:
@@ -21,6 +21,9 @@ def get_importance(model, df):
     fi_df = pd.DataFrame({'feature': feature_names, 'importance': importances})
     fi_df['main_feature'] = fi_df['feature'].str.split('_').str[0]
     grouped = fi_df.groupby('main_feature')['importance'].sum().sort_values(ascending=False)
+
+    if specific_col:
+        grouped = grouped[grouped.index.str.contains(specific_col)]
 
     print(grouped)
 
