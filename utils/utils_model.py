@@ -1,6 +1,8 @@
+import re
 import torch
 import numpy as np
 import pandas as pd
+from collections import defaultdict
 from sklearn.metrics import average_precision_score, confusion_matrix
 device = torch.device("mps" if torch.backends.mps.is_available() else "cpu")
 
@@ -10,8 +12,14 @@ def get_importance(model, df, specific_col=None):
     else:
         importances = model.feature_importances_
 
-    indices = np.argsort(importances)[::-1]
     feature_names = df.columns
+
+    if specific_col:
+        sel_idx = [i for i, name in enumerate(feature_names) if specific_col in name]
+        indices = np.argsort(importances[sel_idx])[::-1]
+        indices = [sel_idx[i] for i in indices]   # 對應回原始 index
+    else:
+        indices = np.argsort(importances)[::-1]
 
     print('feature importance')
     for i in indices:
@@ -21,9 +29,6 @@ def get_importance(model, df, specific_col=None):
     fi_df = pd.DataFrame({'feature': feature_names, 'importance': importances})
     fi_df['main_feature'] = fi_df['feature'].str.split('_').str[0]
     grouped = fi_df.groupby('main_feature')['importance'].sum().sort_values(ascending=False)
-
-    if specific_col:
-        grouped = grouped[grouped.index.str.contains(specific_col)]
 
     print(grouped)
 
@@ -61,12 +66,60 @@ def extract_features(
 
     return all_features_df
 
+# build_groups_from_prefix是最基礎的分開方式，原本適用於不考慮交互作用的模型
+# build_groups_with_interactions則是考慮交互作用，但顯示還是以個別欄位為單位
+# build_pair_interaction_groups的單位是兩個不同欄位的交互作用，然後再細分裡面的值
+
 def build_groups_from_prefix(columns, sep="_"):
     groups = {}
     for c in columns:
         prefix = c.split(sep, 1)[0]
         groups.setdefault(prefix, []).append(c)
     return groups
+
+def build_groups_with_interactions(columns, base_sep="_", inter_pattern=r"\s*x\s*"):
+    def main_prefix(s: str) -> str:
+        return s.split(base_sep, 1)[0]
+
+    groups = defaultdict(list)
+
+    for col in columns:
+        # 先照原本規則，把欄位放到自己的主前綴群組
+        base = main_prefix(col)
+        groups[base].append(col)
+
+        # 再處理交互作用：以 x（不分大小寫、容許空白）切開
+        parts = re.split(inter_pattern, col, flags=re.IGNORECASE)
+        if len(parts) > 1:
+            for p in parts:
+                g = main_prefix(p)
+                if col not in groups[g]:
+                    groups[g].append(col)
+
+    return dict(groups)
+
+def build_pair_interaction_groups(columns, base_sep="_", inter_pattern=r"\s*x\s*"):
+    def main_prefix(s: str) -> str:
+        return s.split(base_sep, 1)[0]
+
+    pair_groups = defaultdict(list)
+
+    for col in columns:
+        parts = re.split(inter_pattern, col, flags=re.IGNORECASE)
+        if len(parts) <= 1:
+            continue  # 非交互作用欄位略過
+
+        # 抽取每個部分的主前綴（去重以免同一前綴重複）
+        prefixes = [main_prefix(p) for p in parts]
+        unique_prefixes = list(dict.fromkeys(prefixes))  # 保留順序的去重
+
+        a, b = unique_prefixes
+        if a > b: a, b = b, a
+
+        key = f"{a} x {b}"
+        pair_groups[key].append(col)
+
+    return dict(pair_groups)
 
 def PI_ML(
         model, X_df, y, groups=None, n_repeats=5, random_state=42
