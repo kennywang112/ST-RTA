@@ -22,19 +22,11 @@ from sklearn.model_selection import train_test_split, StratifiedKFold, cross_val
 from sklearn.linear_model import LogisticRegression
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import confusion_matrix, classification_report, roc_auc_score, average_precision_score, accuracy_score, f1_score, recall_score, precision_score
+from utils_model import get_interaction
+from utils import read_data
 
 print('read data')
-dataA1 = pd.read_csv('../ComputedData/Accident/DataA1_with_MYP.csv')
-dataA2 = pd.read_csv('../ComputedData/Accident/DataA2_with_MYP.csv')
-
-filtered_A2 = dataA2[dataA2['當事者順位'] == 1]
-filtered_A1 = dataA1[dataA1['當事者順位'] == 1]
-
-filtered_A1['source'] = 'A1'
-filtered_A2['source'] = 'A2'
-filtered_A1['num_accidents'] = 1 
-filtered_A2['num_accidents'] = 1
-combined_data = pd.concat([filtered_A1, filtered_A2], ignore_index=True)
+combined_data = read_data()
 
 taiwan = gpd.read_file('../Data/OFiles_9e222fea-bafb-4436-9b17-10921abc6ef2/TOWN_MOI_1140318.shp')
 taiwan = taiwan[(~taiwan['TOWNNAME'].isin(['旗津區', '頭城鎮', '蘭嶼鄉', '綠島鄉', '琉球鄉'])) & 
@@ -87,30 +79,8 @@ le = LabelEncoder()
 y = le.fit_transform(new_grid_encoded['hotspot'])
 X = new_grid_encoded.drop(columns=['hotspot'])
 
-###
-from itertools import combinations
-groups = {base: [c for c in X.columns if c.startswith(base)] for base in for_poly}
-# 只做不同基底之間的配對
-base_pairs = list(combinations(for_poly, 2))
-
-new_cols = {}
-for a, b in base_pairs:
-    cols_a, cols_b = groups[a], groups[b]
-    for ca in cols_a:
-        va = X[ca].values
-        for cb in cols_b:
-            vb = X[cb].values
-            prod = va * vb
-            # 若這個交互列完全為0就跳過（節省維度）
-            if not np.any(prod):
-                continue
-            name = f"{ca} x {cb}"
-            new_cols[name] = prod
-
-if new_cols:
-    X_inter = pd.DataFrame(new_cols, index=X.index)
-    X = pd.concat([X, X_inter], axis=1)
-###
+# interaction
+X = get_interaction(X)
 
 X_train, X_test, y_train, y_test = train_test_split(
     X, y, test_size=0.2, stratify=y, random_state=42

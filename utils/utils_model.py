@@ -5,6 +5,7 @@ import pandas as pd
 from collections import defaultdict
 from sklearn.metrics import average_precision_score, confusion_matrix
 device = torch.device("mps" if torch.backends.mps.is_available() else "cpu")
+from sklearn.preprocessing import LabelEncoder
 
 def get_importance(model, df, specific_col=None):
     if model.__class__.__name__ == 'LogisticRegression':
@@ -17,20 +18,22 @@ def get_importance(model, df, specific_col=None):
     if specific_col:
         sel_idx = [i for i, name in enumerate(feature_names) if specific_col in name]
         indices = np.argsort(importances[sel_idx])[::-1]
-        indices = [sel_idx[i] for i in indices]   # 對應回原始 index
+        indices = [sel_idx[i] for i in indices] # 對應回原始 index
     else:
         indices = np.argsort(importances)[::-1]
 
-    print('feature importance')
+    # 以縣市為單位進行分組
+    importance_ungrouped = {}
     for i in indices:
-        print(f"{feature_names[i]}: {importances[i]:.4f}")
+        importance_ungrouped[feature_names[i]] = [importances[i], np.exp(importances[i])]
 
-    print('grouped feature importance')
     fi_df = pd.DataFrame({'feature': feature_names, 'importance': importances})
     fi_df['main_feature'] = fi_df['feature'].str.split('_').str[0]
-    grouped = fi_df.groupby('main_feature')['importance'].sum().sort_values(ascending=False)
+    grouped = fi_df.groupby('main_feature', as_index=False)['importance'].sum()
+    grouped['exp'] = np.exp(grouped['importance'])
+    grouped = grouped.sort_values('importance', ascending=False)
 
-    print(grouped)
+    return importance_ungrouped, grouped
 
 def extract_features(
         grid, combined_data, select_group, rows
@@ -65,6 +68,34 @@ def extract_features(
     all_features_df = all_features.to_frame().T
 
     return all_features_df
+
+from config import for_poly
+def get_interaction(X):
+
+    from itertools import combinations
+
+    groups = {base: [c for c in X.columns if c.startswith(base)] for base in for_poly}
+    # 只做不同基底之間的配對
+    base_pairs = list(combinations(for_poly, 2))
+    new_cols = {}
+    for a, b in base_pairs:
+        cols_a, cols_b = groups[a], groups[b]
+        for ca in cols_a:
+            va = X[ca].values
+            for cb in cols_b:
+                vb = X[cb].values
+                prod = va * vb
+                # 若這個交互列完全為0就跳過（節省維度）
+                if not np.any(prod):
+                    continue
+                name = f"{ca} x {cb}"
+                new_cols[name] = prod
+
+    if new_cols:
+        X_inter = pd.DataFrame(new_cols, index=X.index)
+        X = pd.concat([X, X_inter], axis=1)
+
+    return X
 
 # build_groups_from_prefix是最基礎的分開方式，原本適用於不考慮交互作用的模型
 # build_groups_with_interactions則是考慮交互作用，但顯示還是以個別欄位為單位
@@ -236,3 +267,76 @@ def hitrate_data(resample_X, resample_y, model_y):
     hitrate_df['county'] = hitrate_df['county'].str.replace('county_', '')
 
     return hitrate_df
+
+from sklearn.preprocessing import label_binarize
+def print_results(proba_test, classes, y_resampled_test):
+    """
+    proba_test: 預測的概率
+    classes: 類別名稱
+    y_resampled_test: 重抽樣後的測試標籤
+    """
+    le = LabelEncoder()
+
+    y_pred = np.argmax(proba_test, axis=1)
+
+    print("Confusion Matrix")
+    print(confusion_matrix(y_resampled_test, y_pred, labels=range(len(classes))))
+
+    print("Classification Report")
+    print(classification_report(
+        y_resampled_test, y_pred, target_names=classes, digits=3
+    ))
+
+    if proba_test.shape[1] == 2:
+        # 二元分類
+        roc_auc = roc_auc_score(y_resampled_test, proba_test[:, 1])
+        print(f'ROC AUC: {roc_auc:.3f}')
+        y_test_bin = label_binarize(y_resampled_test, classes=range(len(classes)))
+        pr_auc_macro  = average_precision_score(y_test_bin, proba_test[:, 1], average='macro')
+        pr_auc_weight = average_precision_score(y_test_bin, proba_test[:, 1], average='weighted')
+        print(f'PR  AUC macro: {pr_auc_macro:.3f}')
+        print(f'PR  AUC wighted: {pr_auc_weight:.3f}')
+    else:
+        # 多類分類
+        roc_auc = roc_auc_score(y_resampled_test, proba_test, average='weighted', multi_class='ovr')
+        print(f'ROC AUC: {roc_auc:.3f}')
+        # 多類PR AUC需要 binarize 後用 one-vs-rest，再做 macro/weighted 平均
+        y_test_bin = label_binarize(y_resampled_test, classes=range(len(le.classes_)))  # shape [n, n_classes]
+        pr_auc_macro  = average_precision_score(y_test_bin, proba_test, average='macro')
+        pr_auc_weight = average_precision_score(y_test_bin, proba_test, average='weighted')
+        print(f'PR  AUC macro: {pr_auc_macro:.3f}')
+        print(f'PR  AUC wighted: {pr_auc_weight:.3f}')
+
+# NN
+from sklearn.metrics import confusion_matrix, classification_report, roc_auc_score, average_precision_score, accuracy_score, f1_score, recall_score, precision_score
+def to_tensors(X_df, y_arr):
+    return (torch.from_numpy(np.asarray(X_df, dtype=np.float32)),
+            torch.from_numpy(np.asarray(y_arr, dtype=np.int64)))
+
+def eval_loop(model, loader, le):
+
+    model.eval()
+    all_logits = []
+    all_y = []
+    with torch.no_grad():
+        for xb, yb in loader:
+            xb = xb.to(device)
+            logits = model(xb)
+            all_logits.append(logits.cpu())
+            all_y.append(yb)
+    logits_all = torch.cat(all_logits)
+    y_all = torch.cat(all_y)
+    probs = torch.softmax(logits_all, dim=1).numpy()
+    preds = probs.argmax(axis=1)
+    acc = accuracy_score(y_all, preds)
+    f1  = f1_score(y_all, preds, average='binary' if probs.shape[1]==2 else 'weighted')
+    recall = recall_score(y_all, preds, average='binary' if probs.shape[1]==2 else 'weighted')
+    if probs.shape[1] == 2:
+        auc = roc_auc_score(y_all, probs[:,1])
+    else:
+        auc = roc_auc_score(y_all, probs, multi_class='ovr', average='weighted')
+
+    conf = confusion_matrix(y_all, preds, labels=range(len(le.classes_)))
+    report = classification_report(y_all, preds, target_names=le.classes_, digits=3)
+
+    return {'acc': acc, 'f1': f1, 'recall': recall, 'auc': auc, 'conf': conf, 'report': report, 'pred_y': preds}

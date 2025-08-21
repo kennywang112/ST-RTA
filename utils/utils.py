@@ -1,12 +1,28 @@
 import json
 import folium
 import numpy as np
+import pandas as pd
 from esda import Moran, G_Local
 import geopandas as gpd
 import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
 from shapely.geometry import Polygon
 from libpysal.weights import DistanceBand, Queen, KNN
+
+def read_data():
+    dataA1 = pd.read_csv('../ComputedData/Accident/DataA1_with_MYP.csv')
+    dataA2 = pd.read_csv('../ComputedData/Accident/DataA2_with_MYP.csv')
+
+    filtered_A2 = dataA2[dataA2['當事者順位'] == 1].copy()
+    filtered_A1 = dataA1[dataA1['當事者順位'] == 1].copy()
+
+    filtered_A1['source'] = 'A1'
+    filtered_A2['source'] = 'A2'
+    filtered_A1['num_accidents'] = 1 
+    filtered_A2['num_accidents'] = 1
+    combined_data = pd.concat([filtered_A1, filtered_A2], ignore_index=True)
+    
+    return combined_data
 
 def create_hexagon(center_x, center_y, size):
     angles = np.linspace(0, 2 * np.pi, 7)
