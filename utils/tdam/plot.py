@@ -43,7 +43,15 @@ class MapperPlot:
             dim=self.dim,
             seed=self.seed,
             iterations=self.iterations,
-        )
+        ) # 原始
+        # self.positions = nx.spectral_layout(
+        #     self.graph, 
+        #     dim=self.dim,
+        # ) # 效果很差
+        # self.positions = nx.kamada_kawai_layout(
+        #     self.graph, 
+        #     dim=self.dim
+        # ) # 慢
 
     def plot_matplotlib(
         self,
