@@ -1,4 +1,6 @@
 import re
+import os
+from pyvis.network import Network
 import numpy as np
 import pandas as pd
 import networkx as nx
@@ -364,21 +366,21 @@ class MapperPlotter:
 
     def plot_3d(self, choose, avg=None, save_path=None, set_label=False, size=100):
         # 過濾掉無效的顏色資料
-        # self.full_info = self.full_info.dropna(subset=['color_for_plot_fixed'])
+        valid_data = self.filtered_info.dropna(subset=['color_for_plot_fixed'])
 
-        clipped_size = np.clip(self.full_info['size'], None, size)
+        clipped_size = np.clip(valid_data['size'], None, size)
 
         fig = plt.figure(figsize=(15, 12))
         ax = fig.add_subplot(111, projection='3d')
 
         if avg:
-            color = self.full_info['color']
+            color = self.filtered_info['color']
         else:
             # 確保 'color_for_plot_fixed' 是有效的顏色格式
-            color = [tuple(c) if isinstance(c, (list, tuple)) else c for c in self.full_info['color_for_plot_fixed']]
+            color = [tuple(c) if isinstance(c, (list, tuple)) else c for c in valid_data['color_for_plot_fixed']]
 
         scatter = ax.scatter(
-            self.full_info['x'], self.full_info['y'], self.full_info['z'],
+            valid_data['x'], valid_data['y'], valid_data['z'],
             c=color,
             edgecolors='black',
             linewidths=0.5,
