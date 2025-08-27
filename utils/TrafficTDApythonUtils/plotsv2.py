@@ -145,61 +145,89 @@ class MapperPlotterSpring:
         print("Data extracted.")
         return self.filtered_info, self.outlier_info
 
-    def map_colors(self, choose, size=0, threshold=5):
+    def map_colors(self, choose, size=0, threshold=5, drop_unused_labels=True):
         """
         choose: 要用來顯色的欄位（和 create_mapper_plot 保持一致）
-        size:   以節點 size 做最小門檻過濾（你要的功能 1）
-        threshold: 分類項目最少出現次數門檻（和你原本一致）
-        range_lst（功能 2）會用來裁切座標範圍
+        size:   以節點 size 做最小門檻過濾
+        threshold: 只保留在「子圖對應的原始資料子集合」中出現次數 > threshold 的類別
+        drop_unused_labels: 若某類別在子圖中完全沒被任何節點代表，則從 legend 與資料中移除
         """
         print("Mapping colors...")
-        # 1) 依節點大小過濾
-        df = self.filtered_info[self.filtered_info['size'] > size].copy()
 
-        # 2) 依 range_lst 裁切座標（避免極值破壞圖面）
+        # 1) 以節點大小過濾 + 依 range_lst 篩座標
+        df = self.filtered_info[self.filtered_info['size'] > size].copy()
         if self.range_lst is not None:
             xmin, xmax, ymax, ymin = self.range_lst
             df = df[(df['x'] > xmin) & (df['x'] < xmax) & (df['y'] > ymin) & (df['y'] < ymax)]
 
-        # 3) 分類顏色映射（延續你原本的門檻與 palette）
-        category_counts = self.rbind_data[self.choose].value_counts()
-        filtered_categories = category_counts[category_counts > threshold].index
-        unique_values = (
-            self.rbind_data.reset_index()[[self.choose, 'color_for_plot']]
-            .drop_duplicates()
-        )
-        unique_values = unique_values[unique_values[self.choose].isin(filtered_categories)]
-        unique_categories = filtered_categories.tolist()
+        # 如果整個子圖空了，直接收尾
+        if df.empty:
+            self.filtered_info = df.assign(color_for_plot_fixed=np.nan)
+            self.color_palette = {}
+            self.unique_categories = []
+            print("No nodes remain after filtering.")
+            return df
 
-        color_palette = get_cmap("tab20", len(unique_categories))
-        color_mapping_fixed = {cat: color_palette(i) for i, cat in enumerate(unique_categories)}
+        # 2) 只用子圖所覆蓋到的原始 ids 來決定類別與門檻
+        #    這一步是關鍵：不要用全體 rbind_data，而是用子集合 rbind_subset
+        ids_series = df['ids'].explode()
+        kept_ids = ids_series.dropna().astype(int).unique().tolist()
+        rbind_subset = self.rbind_data.iloc[kept_ids].copy()
 
-        # 把節點 color（是經 encoded_label 聚合後的數值 or 類別編碼）對回原類別，用 palette 上色
-        # 做法：用 rbind_data 的 (choose, color_for_plot) 對照，把 node.color（聚合後）找出「代表的類別」。
-        # 若 avg 模式：直接用連續色圖；若非 avg：用固定離散色。
         if self.color_mode_avg:
-            # 連續色：把 color 正規化丟進 cmap
+            # 連續色：把 color 正規化丟進 cmap；與類別無關
             vals = df['color'].astype(float)
             vmin, vmax = np.nanpercentile(vals, 2), np.nanpercentile(vals, 98)
             vmax = vmax if vmax > vmin else vmin + 1e-9
             norm = (vals - vmin) / (vmax - vmin)
             cmap = get_cmap(self.cmap)
             df['color_for_plot_fixed'] = norm.apply(lambda t: cmap(np.clip(t, 0, 1)))
+
+            # 連續模式沒有離散圖例
+            self.color_palette = {}
+            self.unique_categories = []
         else:
-            # 離散色：先把 node 的 color（聚合結果）對回最常見的類別值
-            # 建立從編碼 -> 類別名 的對照
+            # 離散色：先在「子集合」內計數與門檻
+            # 這裡用子集合以免出現未在子圖出現的類別
+            category_counts = rbind_subset[self.choose].value_counts(dropna=True)
+            filtered_categories = category_counts[category_counts > threshold].index.tolist()
+
+            # 建立子集合的 "編碼 -> 類別名" 對照（仍沿用先前 factorize 的編碼）
+            unique_values = (
+                rbind_subset.reset_index(drop=True)[[self.choose, 'color_for_plot']]
+                .drop_duplicates()
+            )
             code_to_cat = dict(zip(unique_values['color_for_plot'], unique_values[self.choose]))
+
+            # 把節點 color（是聚合後的「編碼」）對回「類別名」
             df['_cat'] = df['color'].map(code_to_cat)
-            df['color_for_plot_fixed'] = df['_cat'].map(color_mapping_fixed)
+
+            # （可選）丟掉在子圖中根本沒被任何節點代表、或未達門檻的類別
+            if drop_unused_labels:
+                df = df[df['_cat'].isin(filtered_categories)]
+
+            # 再算一次「子圖中實際出現」的類別清單（legend 用）
+            present_cats = df['_cat'].dropna().unique().tolist()
+
+            # 依 filtered_categories 的順序排，圖例會更一致
+            ordered_cats = [c for c in filtered_categories if c in present_cats]
+
+            # 產生固定 palette（只對仍存在的類別上色）
+            color_palette = get_cmap("tab20", len(ordered_cats))
+            color_mapping_fixed = {cat: color_palette(i) for i, cat in enumerate(ordered_cats)}
+
+            # 指派顏色；其他（NaN 或被丟掉的）給預設灰
             default_color = (0.5, 0.5, 0.5, 1)
-            df['color_for_plot_fixed'] = df['color_for_plot_fixed'].apply(
+            df['color_for_plot_fixed'] = df['_cat'].map(color_mapping_fixed).apply(
                 lambda c: c if pd.notna(c) else default_color
             )
+
+            # 狀態保存
+            self.color_palette = color_mapping_fixed
+            self.unique_categories = ordered_cats
             df.drop(columns=['_cat'], inplace=True, errors='ignore')
 
         self.filtered_info = df
-        self.color_palette = color_mapping_fixed
-        self.unique_categories = unique_categories
         print("Colors mapped.")
         return df
 
