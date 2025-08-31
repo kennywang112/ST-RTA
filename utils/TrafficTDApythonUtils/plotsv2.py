@@ -60,6 +60,22 @@ class MapperPlotterSpring:
         except Exception:
             return np.nan
 
+    def _rgba_to_hex(c):
+        """(r,g,b,a) or (r,g,b) -> '#RRGGBB'；若已是 hex 或字串就原樣返回。"""
+        import matplotlib.colors as mcolors
+        if c is None or (isinstance(c, float) and np.isnan(c)):
+            return "#808080"
+        if isinstance(c, str):
+            # 已是顏色字串：可能是 '#RRGGBB' 或 'rgb(...)' 或色名
+            try:
+                return mcolors.to_hex(c, keep_alpha=False)
+            except Exception:
+                return "#808080"
+        try:
+            return mcolors.to_hex(c, keep_alpha=False)
+        except Exception:
+            return "#808080"
+
     def create_mapper_plot(self, choose, encoded_label, avg=False, size_threshold=0):
         print("Creating spring layout...")
         self.choose = choose
@@ -283,6 +299,128 @@ class MapperPlotterSpring:
             print(f"Plot saved to {save_path}")
         else:
             plt.show()
+
+    def pvis(self,
+            path: str = "mapper_pvis.html",
+            height: str = "800px",
+            width: str = "100%",
+            notebook: bool = False,
+            open_browser: bool = False,
+            physics_mode: str = "warm",  # "off" | "warm"
+            node_size_cap: float = 100.0,
+            scale_xy: float = 800.0,
+            tooltip_fields: tuple = ("size", "ratio"),
+            edge_length_from_layout: bool = True,   # << 新增開關
+            ):
+        """
+        產生 PyVis 互動網頁。
+        需求：你已經跑過 create_mapper_plot()、extract_data()、map_colors()
+
+        path: 輸出的 HTML 檔名
+        physics_mode: "off" -> 完全關閉物理; "warm" -> 溫和物理，不重跑穩定化
+        node_size_cap: 節點大小上限 (像素)
+        scale_xy: spring_layout 座標的縮放倍率
+        tooltip_fields: 滑鼠提示顯示的欄位
+        edge_length_from_layout: 若 True，每條邊的長度設為 spring_layout 的距離
+        """
+        from pyvis.network import Network
+        import numpy as np
+        import pandas as pd
+
+        df = self.filtered_info.dropna(subset=["x", "y"]).copy()
+
+        # 顏色
+        if "color_for_plot_fixed" not in df.columns:
+            if "color" in df.columns:
+                df["color_for_plot_fixed"] = df["color"].apply(self._rgba_to_hex)
+            else:
+                df["color_for_plot_fixed"] = "#808080"
+        else:
+            df["color_for_plot_fixed"] = df["color_for_plot_fixed"].apply(self._rgba_to_hex)
+
+        net = Network(height=height, width=width, notebook=notebook, directed=False)
+
+        if physics_mode == "off":
+            net.set_options("""{
+            "physics": { "enabled": false },
+            "interaction": { "hover": true, "dragNodes": true, "dragView": true, "zoomView": true },
+            "layout": { "improvedLayout": false },
+            "nodes": { 
+                            "borderWidth": 1,
+                            "scaling": { "min": 1, "max": 5 } 
+                            },
+            "configure": { "enabled": true, "filter": ["physics"] }
+            }""")
+
+        elif physics_mode == "warm":
+            net.set_options("""{
+            "physics": {
+                "enabled": true,
+                "stabilization": { "enabled": false },
+                "solver": "forceAtlas2Based",
+                "maxVelocity": 5,
+                "minVelocity": 0.1,
+                "timestep": 0.35,
+                "forceAtlas2Based": {
+                "gravitationalConstant": -3,
+                "springLength": 1,
+                "springConstant": 0.06,
+                "damping": 0.9,
+                "avoidOverlap": 0.7
+                }
+            },
+            "layout": { "improvedLayout": false },
+            "interaction": { "hover": true, "dragNodes": true, "dragView": true, "zoomView": true },
+            "nodes": { "borderWidth": 1 },
+            "configure": { "enabled": true, "filter": ["physics"] }
+            }""")
+
+        present_nodes = set(df["node"].tolist())
+        pos_px = {}  # 存像素座標，方便算邊長
+        for _, row in df.iterrows():
+            nid = int(row["node"]) if pd.notna(row["node"]) else row["node"]
+
+            val = float(row.get("size", 1.0) or 1.0)
+            val = float(np.clip(val, 1.0, node_size_cap))
+
+            # tooltip
+            title_parts = [f"<b>node</b>: {nid}"]
+            if "neighbors" in row and isinstance(row["neighbors"], (list, tuple)):
+                title_parts.append(f"<b>neighbors</b>: {len(row['neighbors'])}")
+            for key in tooltip_fields:
+                if key in row and pd.notna(row[key]):
+                    title_parts.append(f"<b>{key}</b>: {row[key]}")
+            if "ids" in row and isinstance(row["ids"], (list, tuple)):
+                title_parts.append(f"<b>#ids</b>: {len(row['ids'])}")
+            title_html = "<br>".join(title_parts)
+
+            # spring_layout 座標轉像素
+            x = float(row["x"]) * scale_xy
+            y = float(row["y"]) * scale_xy
+            pos_px[nid] = (x, y)
+
+            net.add_node(
+                n_id=nid,
+                title=title_html,
+                color=row["color_for_plot_fixed"],
+                size=val,
+                value=val,
+                x=x, y=y
+            )
+        for u, v in self.G.edges():
+            if (u in present_nodes) and (v in present_nodes):
+                if edge_length_from_layout:
+                    # 用目前 layout 的距離當邊長
+                    x1, y1 = pos_px[int(u)]
+                    x2, y2 = pos_px[int(v)]
+                    dist = ((x1 - x2) ** 2 + (y1 - y2) ** 2) ** 0.5
+                    net.add_edge(int(u), int(v), length=max(1.0, float(dist)))
+                else:
+                    net.add_edge(int(u), int(v))
+
+        net.write_html(path, notebook=notebook, open_browser=open_browser)
+        print(f"Success: {path}")
+        return path
 
     def plot3d_matplotlib(self, choose, avg=None, save_path=None, size=1200,
                         elev=22, azim=35, dpi=150):
