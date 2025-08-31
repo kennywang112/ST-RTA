@@ -3,8 +3,9 @@ import numpy as np
 import pandas as pd
 import networkx as nx
 import matplotlib.pyplot as plt
-from collections import Counter
 from matplotlib.cm import get_cmap
+
+plt.rcParams['font.family'] = ['Arial Unicode Ms']
 
 class MapperPlotterSpring:
     def __init__(self, mapper_info, rbind_data, cmap='jet', seed=10,
@@ -45,37 +46,38 @@ class MapperPlotterSpring:
         return None
 
     def _aggregate_node_color(self, ids):
-        """用 encoded_label 在 rbind_data['color_for_plot'][ids] 上聚合出 node color。"""
         if ids is None or len(ids) == 0:
             return np.nan
         try:
-            vals = self.rbind_data['color_for_plot'].iloc[list(ids)].tolist()
-            return float(self.encoded_label(vals))
+            if isinstance(self.choose, (list, tuple)) and len(self.choose) == 2:
+                # 兩欄：拿出該節點的子表（注意這裡用 list(...) 而不是 tuple）
+                subdf = self.rbind_data.iloc[list(ids)][list(self.choose)]
+                return float(self.encoded_label(subdf))
+            else:
+                # 單欄：沿用舊行為
+                vals = self.rbind_data['color_for_plot'].iloc[list(ids)].tolist()
+                return float(self.encoded_label(vals))
         except Exception:
             return np.nan
 
     def create_mapper_plot(self, choose, encoded_label, avg=False, size_threshold=0):
-        """
-        choose: rbind_data 中要著色的欄位
-        encoded_label: 節點層級的聚合函式(e.g., most_common / avg)
-        avg: True 則 rbind_data[choose] 會轉成 float 後直接用，False 則做 factorize
-        """
         print("Creating spring layout...")
         self.choose = choose
         self.color_mode_avg = bool(avg)
         self.encoded_label = encoded_label
 
-        if avg:
-            self.rbind_data['color_for_plot'] = self.rbind_data[choose].astype(float)
-        else:
-            self.rbind_data['color_for_plot'] = pd.factorize(self.rbind_data[choose])[0]
+        # 只有「單欄」才建立 color_for_plot；雙欄由 _aggregate_node_color 處理
+        if not (isinstance(choose, (list, tuple)) and len(choose) == 2):
+            if avg:
+                self.rbind_data['color_for_plot'] = self.rbind_data[choose].astype(float)
+            else:
+                self.rbind_data['color_for_plot'] = pd.factorize(self.rbind_data[choose])[0]
 
         nodes_to_keep = [n for n, attr in self.G.nodes(data=True) if attr.get("size", 0) > size_threshold]
-        H = self.G.subgraph(nodes_to_keep).copy()   # 子圖
-        self.G = H  # 更新內部的 graph
-
+        H = self.G.subgraph(nodes_to_keep).copy()
+        self.G = H
         self.pos = nx.spring_layout(self.G, dim=self.dim, seed=self.seed, iterations=self.iterations)
-        print("Mapper (spring) layout computed.")
+        print(f"Mapper (spring) layout computed. nodes={self.G.number_of_nodes()}")
         return self
 
     def extract_data(self, rx=False, ry=False, rz=False):
