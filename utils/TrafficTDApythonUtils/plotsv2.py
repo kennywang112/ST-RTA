@@ -9,7 +9,8 @@ plt.rcParams['font.family'] = ['Arial Unicode Ms']
 
 class MapperPlotterSpring:
     def __init__(self, mapper_info, rbind_data, cmap='jet', seed=10,
-                 width=400, height=400, iterations=30, dim=3, range_lst=None):
+                 width=400, height=400, iterations=30, dim=3, range_lst=None,
+                 encoded_label=None):
         """
         mapper_info: networkx.Graph（Mapper 產生的圖）
         rbind_data:  原始資料的 DataFrame（要從這裡用 ids 聚合出每個 node 的顏色）
@@ -24,6 +25,7 @@ class MapperPlotterSpring:
         self.height = height
         self.dim = dim
         self.range_lst = range_lst
+        self.encoded_label = encoded_label
 
         # 狀態
         self.G = mapper_info
@@ -34,8 +36,8 @@ class MapperPlotterSpring:
         self.color_palette = None
         self.unique_categories = None
         self.color_mode_avg = None
-        self.encoded_label = None
         self.choose = None
+        self.size_threshold = None
 
     @staticmethod
     def _pick_ids_attr(attr: dict):
@@ -76,20 +78,20 @@ class MapperPlotterSpring:
         except Exception:
             return "#808080"
 
-    def create_mapper_plot(self, choose, encoded_label, avg=False, size_threshold=0):
+    def create_mapper_plot(self, choose, avg=False, size_threshold=0):
+
         print("Creating spring layout...")
+        self.size_threshold = size_threshold
         self.choose = choose
         self.color_mode_avg = bool(avg)
-        self.encoded_label = encoded_label
 
-        # 只有「單欄」才建立 color_for_plot；雙欄由 _aggregate_node_color 處理
         if not (isinstance(choose, (list, tuple)) and len(choose) == 2):
             if avg:
                 self.rbind_data['color_for_plot'] = self.rbind_data[choose].astype(float)
             else:
                 self.rbind_data['color_for_plot'] = pd.factorize(self.rbind_data[choose])[0]
-
-        nodes_to_keep = [n for n, attr in self.G.nodes(data=True) if attr.get("size", 0) > size_threshold]
+        # 篩選節點
+        nodes_to_keep = [n for n, attr in self.G.nodes(data=True) if attr.get("size", 0) > self.size_threshold]
         H = self.G.subgraph(nodes_to_keep).copy()
         self.G = H
         self.pos = nx.spring_layout(self.G, dim=self.dim, seed=self.seed, iterations=self.iterations)
@@ -98,10 +100,10 @@ class MapperPlotterSpring:
 
     def extract_data(self, rx=False, ry=False, rz=False):
         """
-        從 self.G 與 self.pos 組裝 full_info：
+        從 self.G 與 self.pos 組裝 full_info:
         columns = ['node','size','ids','neighbors','color','x','y','(z)','ratio']
         """
-        print
+
         # 鄰居（排序）
         neighbors_map = {n: sorted(list(self.G.neighbors(n))) for n in self.G.nodes()}
 
@@ -114,8 +116,6 @@ class MapperPlotterSpring:
 
             # 聚合顏色
             color_val = self._aggregate_node_color(ids)
-
-            # 座標
             coords = self.pos[n]
             if self.dim == 3:
                 x, y, z = coords[0], coords[1], coords[2]
@@ -128,7 +128,9 @@ class MapperPlotterSpring:
                 "size": size,
                 "ids": ids,
                 "color": color_val,
-                "x": x, "y": y, **({"z": z} if self.dim == 3 else {})
+                "x": x,
+                "y": y,
+                **({"z": z} if self.dim == 3 else {})
             })
 
         self.full_info = pd.DataFrame(rows)
@@ -136,7 +138,7 @@ class MapperPlotterSpring:
         with np.errstate(invalid='ignore', divide='ignore'):
             self.full_info["ratio"] = self.full_info["color"] / self.full_info["size"]
 
-        # 可選旋轉（3D 時）
+        # 3D時可旋轉
         if self.dim == 3 and (rx or ry or rz):
             def _rot_x(P, angle):
                 c, s = np.cos(angle), np.sin(angle)
@@ -157,37 +159,28 @@ class MapperPlotterSpring:
             if rz: P = _rot_z(P, rz)
             self.full_info[['x','y','z']] = P
 
-        # 本版本不做 outlier 偵測，保留欄位以維持相容
+        # 目前不做find_connected_points找 outlier
         self.outlier_info = pd.DataFrame(columns=self.full_info.columns)
         self.filtered_info = self.full_info.copy()
         print("Data extracted.")
         return self.filtered_info, self.outlier_info
 
-    def map_colors(self, choose, size=0, threshold=5, drop_unused_labels=True):
+    def map_colors(self, threshold=5, drop_unused_labels=True):
         """
         choose: 要用來顯色的欄位（和 create_mapper_plot 保持一致）
-        size:   以節點 size 做最小門檻過濾
         threshold: 只保留在「子圖對應的原始資料子集合」中出現次數 > threshold 的類別
         drop_unused_labels: 若某類別在子圖中完全沒被任何節點代表，則從 legend 與資料中移除
         """
         print("Mapping colors...")
 
-        # 1) 以節點大小過濾 + 依 range_lst 篩座標
-        df = self.filtered_info[self.filtered_info['size'] > size].copy()
+        # 以節點大小過濾 + 依 range_lst 篩座標
+        df = self.filtered_info[self.filtered_info['size'] > self.size_threshold].copy()
         if self.range_lst is not None:
             xmin, xmax, ymax, ymin = self.range_lst
             df = df[(df['x'] > xmin) & (df['x'] < xmax) & (df['y'] > ymin) & (df['y'] < ymax)]
 
-        # 如果整個子圖空了，直接收尾
-        if df.empty:
-            self.filtered_info = df.assign(color_for_plot_fixed=np.nan)
-            self.color_palette = {}
-            self.unique_categories = []
-            print("No nodes remain after filtering.")
-            return df
-
-        # 2) 只用子圖所覆蓋到的原始 ids 來決定類別與門檻
-        #    這一步是關鍵：不要用全體 rbind_data，而是用子集合 rbind_subset
+        # 只用子圖所覆蓋到的原始 ids 來決定類別與門檻
+        # 不要用全體 rbind_data，而是用子集合 rbind_subset
         ids_series = df['ids'].explode()
         kept_ids = ids_series.dropna().astype(int).unique().tolist()
         rbind_subset = self.rbind_data.iloc[kept_ids].copy()
@@ -195,8 +188,10 @@ class MapperPlotterSpring:
         if self.color_mode_avg:
             # 連續色：把 color 正規化丟進 cmap；與類別無關
             vals = df['color'].astype(float)
+            # 2, 98 作為映射範圍，避免極端值影響
             vmin, vmax = np.nanpercentile(vals, 2), np.nanpercentile(vals, 98)
             vmax = vmax if vmax > vmin else vmin + 1e-9
+            # standardization
             norm = (vals - vmin) / (vmax - vmin)
             cmap = get_cmap(self.cmap)
             df['color_for_plot_fixed'] = norm.apply(lambda t: cmap(np.clip(t, 0, 1)))
@@ -210,7 +205,7 @@ class MapperPlotterSpring:
             category_counts = rbind_subset[self.choose].value_counts(dropna=True)
             filtered_categories = category_counts[category_counts > threshold].index.tolist()
 
-            # 建立子集合的 "編碼 -> 類別名" 對照（仍沿用先前 factorize 的編碼）
+            # 建立子集合的 "編碼 -> 類別名" 對照
             unique_values = (
                 rbind_subset.reset_index(drop=True)[[self.choose, 'color_for_plot']]
                 .drop_duplicates()
@@ -220,7 +215,7 @@ class MapperPlotterSpring:
             # 把節點 color（是聚合後的「編碼」）對回「類別名」
             df['_cat'] = df['color'].map(code_to_cat)
 
-            # （可選）丟掉在子圖中根本沒被任何節點代表、或未達門檻的類別
+            # 丟掉在子圖中根本沒被任何節點代表、或未達門檻的類別
             if drop_unused_labels:
                 df = df[df['_cat'].isin(filtered_categories)]
 
@@ -240,7 +235,6 @@ class MapperPlotterSpring:
                 lambda c: c if pd.notna(c) else default_color
             )
 
-            # 狀態保存
             self.color_palette = color_mapping_fixed
             self.unique_categories = ordered_cats
             df.drop(columns=['_cat'], inplace=True, errors='ignore')
@@ -249,16 +243,11 @@ class MapperPlotterSpring:
         print("Colors mapped.")
         return df
 
-    def plot(self, choose, avg=None, save_path=None, set_label=False, size=100, anchor=1):
+    def plot(self, save_path=None, set_label=False, size=100, anchor=1):
         """
-        choose:   顏色欄位名（為相容保留；實際已在 map_colors 用 self.choose）
-        avg:      若提供，會覆寫 create_mapper_plot 的 avg 模式（可不給）
-        size:     畫圖時節點大小上限（功能 2 的「避免極大值」，用 clip 控制）
+        size: 畫圖時節點大小上限（功能 2 的「避免極大值」，用 clip 控制）
         """
         print("Plotting...")
-        if avg is not None:
-            self.color_mode_avg = bool(avg)
-
         valid = self.filtered_info.dropna(subset=['color_for_plot_fixed']).copy()
         # clip node size，避免一個節點過大
         clipped_size = np.clip(valid['size'].fillna(1).astype(float), None, size)
@@ -283,7 +272,7 @@ class MapperPlotterSpring:
             if self.color_mode_avg:
                 # 連續色條
                 cbar = plt.colorbar(scatter, ax=plt.gca(), orientation='vertical', pad=0.02)
-                cbar.set_label(f"{choose}")
+                cbar.set_label(f"{self.choose}")
             else:
                 # 離散 legend
                 handles = [
@@ -291,7 +280,7 @@ class MapperPlotterSpring:
                                markersize=10, linestyle='None', label=name)
                     for name in (self.unique_categories or [])
                 ]
-                plt.legend(handles=handles, title=f"{choose}", loc='upper right', bbox_to_anchor=(anchor, 1))
+                plt.legend(handles=handles, title=f"{self.choose}", loc='upper right', bbox_to_anchor=(anchor, 1))
 
         plt.xlabel('X'); plt.ylabel('Y'); plt.title('Mapper (spring) plot'); plt.grid(True)
         if save_path:
