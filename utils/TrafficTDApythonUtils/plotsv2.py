@@ -3,7 +3,8 @@ import numpy as np
 import pandas as pd
 import networkx as nx
 import matplotlib.pyplot as plt
-from matplotlib.cm import get_cmap
+import matplotlib.colors as mcolors
+import matplotlib.cm as cm
 
 plt.rcParams['font.family'] = ['Arial Unicode Ms']
 
@@ -12,9 +13,9 @@ class MapperPlotterSpring:
                  width=400, height=400, iterations=30, dim=3, range_lst=None,
                  encoded_label=None):
         """
-        mapper_info: networkx.Graph（Mapper 產生的圖）
-        rbind_data:  原始資料的 DataFrame（要從這裡用 ids 聚合出每個 node 的顏色）
-        range_lst:   [xmin, xmax, ymax, ymin]（和你原本一致）
+        mapper_info: networkx.Graph(Mapper 產生的圖)
+        rbind_data: 原始資料的 DataFrame(要從這裡用 ids 聚合出每個 node 的顏色)
+        range_lst: [xmin, xmax, ymax, ymin](和你原本一致)
         """
         self.mapper_info = mapper_info        # nx.Graph
         self.rbind_data = rbind_data
@@ -78,7 +79,7 @@ class MapperPlotterSpring:
         except Exception:
             return "#808080"
 
-    def create_mapper_plot(self, choose, avg=False, size_threshold=0):
+    def create_mapper_plot(self, choose, avg=False, size_threshold=0, plot_type='spring'):
 
         print("Creating spring layout...")
         self.size_threshold = size_threshold
@@ -86,16 +87,28 @@ class MapperPlotterSpring:
         self.color_mode_avg = bool(avg)
 
         if not (isinstance(choose, (list, tuple)) and len(choose) == 2):
+            col = self.rbind_data[choose]
             if avg:
-                self.rbind_data['color_for_plot'] = self.rbind_data[choose].astype(float)
+                # 連續模式：只有數值欄位才轉成 float；非數值保留原樣，讓 encoded_label 自行聚合
+                if pd.api.types.is_numeric_dtype(col):
+                    self.rbind_data['color_for_plot'] = pd.to_numeric(col, errors='coerce')
+                else:
+                    self.rbind_data['color_for_plot'] = col.astype(str)
             else:
-                self.rbind_data['color_for_plot'] = pd.factorize(self.rbind_data[choose])[0]
+                # 離散模式：factorize
+                self.rbind_data['color_for_plot'] = pd.factorize(col)[0]
+
         # 篩選節點
         nodes_to_keep = [n for n, attr in self.G.nodes(data=True) if attr.get("size", 0) > self.size_threshold]
         H = self.G.subgraph(nodes_to_keep).copy()
         self.G = H
-        self.pos = nx.spring_layout(self.G, dim=self.dim, seed=self.seed, iterations=self.iterations)
-        print(f"Mapper (spring) layout computed. nodes={self.G.number_of_nodes()}")
+
+        if plot_type == 'spring':
+            self.pos = nx.spring_layout(self.G, dim=self.dim, seed=self.seed, iterations=self.iterations)
+        else:
+            self.pos = nx.kamada_kawai_layout(self.G, dim=self.dim)
+
+        print(f"Mapper layout computed. nodes={self.G.number_of_nodes()}")
         return self
 
     def extract_data(self, rx=False, ry=False, rz=False):
@@ -193,7 +206,7 @@ class MapperPlotterSpring:
             vmax = vmax if vmax > vmin else vmin + 1e-9
             # standardization
             norm = (vals - vmin) / (vmax - vmin)
-            cmap = get_cmap(self.cmap)
+            cmap = cm.get_cmap(self.cmap)
             df['color_for_plot_fixed'] = norm.apply(lambda t: cmap(np.clip(t, 0, 1)))
 
             # 連續模式沒有離散圖例
@@ -226,7 +239,7 @@ class MapperPlotterSpring:
             ordered_cats = [c for c in filtered_categories if c in present_cats]
 
             # 產生固定 palette（只對仍存在的類別上色）
-            color_palette = get_cmap("tab20", len(ordered_cats))
+            color_palette = cm.get_cmap("tab20", len(ordered_cats))
             color_mapping_fixed = {cat: color_palette(i) for i, cat in enumerate(ordered_cats)}
 
             # 指派顏色；其他（NaN 或被丟掉的）給預設灰
@@ -240,6 +253,10 @@ class MapperPlotterSpring:
             df.drop(columns=['_cat'], inplace=True, errors='ignore')
 
         self.filtered_info = df
+
+        self._cont_vmin = float(vmin)
+        self._cont_vmax = float(vmax)
+        self._cont_cmap = self.cmap
         print("Colors mapped.")
         return df
 
@@ -270,8 +287,12 @@ class MapperPlotterSpring:
 
         if set_label:
             if self.color_mode_avg:
-                # 連續色條
-                cbar = plt.colorbar(scatter, ax=plt.gca(), orientation='vertical', pad=0.02)
+                vmin = getattr(self, "_cont_vmin", np.nanmin(valid["color"]))
+                vmax = getattr(self, "_cont_vmax", np.nanmax(valid["color"]))
+                cmap = plt.get_cmap(getattr(self, "_cont_cmap", self.cmap))
+                mappable = cm.ScalarMappable(norm=mcolors.Normalize(vmin=vmin, vmax=vmax), cmap=cmap)
+                mappable.set_array([])  # 避免 warning
+                cbar = plt.colorbar(mappable, ax=plt.gca(), orientation='vertical', pad=0.02)
                 cbar.set_label(f"{self.choose}")
             else:
                 # 離散 legend
@@ -280,7 +301,7 @@ class MapperPlotterSpring:
                                markersize=10, linestyle='None', label=name)
                     for name in (self.unique_categories or [])
                 ]
-                plt.legend(handles=handles, title=f"{self.choose}", loc='upper right', bbox_to_anchor=(anchor, 1))
+                plt.legend(handles=handles, title=f"{self.choose}", loc='lower left', bbox_to_anchor=anchor)
 
         plt.xlabel('X'); plt.ylabel('Y'); plt.title('Mapper (spring) plot'); plt.grid(True)
         if save_path:

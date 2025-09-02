@@ -21,7 +21,15 @@ def read_data():
     filtered_A1['num_accidents'] = 1 
     filtered_A2['num_accidents'] = 1
     combined_data = pd.concat([filtered_A1, filtered_A2], ignore_index=True)
-    
+
+    # 替換離群值成中位數
+    median_speed = combined_data.loc[combined_data['速限-第1當事者'] < 200, '速限-第1當事者'].median()
+    median_age = combined_data.loc[(combined_data['當事者事故發生時年齡'] > 0) & (combined_data['當事者事故發生時年齡'] < 100),
+                    '當事者事故發生時年齡'].median()
+    combined_data.loc[combined_data['速限-第1當事者'] >= 200, '速限-第1當事者'] = median_speed
+    combined_data.loc[(combined_data['當事者事故發生時年齡'] >= 100) | 
+                    (combined_data['當事者事故發生時年齡'] <= 0), '當事者事故發生時年齡'] = median_age
+
     return combined_data
 
 def create_hexagon(center_x, center_y, size):
@@ -156,7 +164,7 @@ def calculate_gi(best_distance, grid, adjacency=None):
         w = DistanceBand(coords, threshold=best_distance, binary=True, silence_warnings=True)
 
     w.transform = 'r'
-    y = grid['num_accidents'].values
+    y = grid['num_accidents'].astype(np.float64).values
     g_local = G_Local(y, w)
     grid['GiZScore'] = g_local.Zs
 
