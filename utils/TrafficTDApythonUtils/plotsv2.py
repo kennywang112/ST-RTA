@@ -212,6 +212,9 @@ class MapperPlotterSpring:
             # 連續模式沒有離散圖例
             self.color_palette = {}
             self.unique_categories = []
+            self._cont_vmin = float(vmin)
+            self._cont_vmax = float(vmax)
+            self._cont_cmap = self.cmap
         else:
             # 離散色：先在「子集合」內計數與門檻
             # 這裡用子集合以免出現未在子圖出現的類別
@@ -251,12 +254,12 @@ class MapperPlotterSpring:
             self.color_palette = color_mapping_fixed
             self.unique_categories = ordered_cats
             df.drop(columns=['_cat'], inplace=True, errors='ignore')
+            self._cont_vmin = None
+            self._cont_vmax = None
+            self._cont_cmap = None
 
         self.filtered_info = df
 
-        self._cont_vmin = float(vmin)
-        self._cont_vmax = float(vmax)
-        self._cont_cmap = self.cmap
         print("Colors mapped.")
         return df
 
