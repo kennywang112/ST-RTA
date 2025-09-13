@@ -31,5 +31,10 @@ conda activate ST-RTA
 pip install -r requirements.txt
 ```
 
+### Core
+Analyze/DataPreprocess.py: Preprocess data for grid analyze `grid_gi` and model input data `all_features`<br/>
+Models/Model.py: Run ML model from `all_features`<br/>
+Models/FilterforMapper.py: Get the filter function for Mapper from `all_features` data
+
 ### Paper
 Some reference papers are stored in [notion](https://www.notion.so/Spatio-temporal-Analysis-Paper-1f275012ce1a800086e2cf4a2b1b3075?source=copy_link)

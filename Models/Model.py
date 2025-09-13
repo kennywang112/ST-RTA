@@ -6,12 +6,12 @@ analyze_path = os.path.join(current_dir, "utils")
 os.chdir(analyze_path)
 
 import ast
+import joblib
 import pickle
 import numpy as np
 import pandas as pd
 import geopandas as gpd
 from shapely import wkt
-import geopandas as gpd
 
 import torch
 from torch import nn
@@ -28,41 +28,32 @@ from utils import read_data
 print('read data')
 combined_data = read_data()
 
+TM2 = 3826
 taiwan = gpd.read_file('../Data/OFiles_9e222fea-bafb-4436-9b17-10921abc6ef2/TOWN_MOI_1140318.shp')
 taiwan = taiwan[(~taiwan['TOWNNAME'].isin(['旗津區', '頭城鎮', '蘭嶼鄉', '綠島鄉', '琉球鄉'])) & 
-                (~taiwan['COUNTYNAME'].isin(['金門縣', '連江縣', '澎湖縣']))]
+                (~taiwan['COUNTYNAME'].isin(['金門縣', '連江縣', '澎湖縣']))].to_crs(TM2)
+taiwan_cnty = taiwan[['COUNTYNAME','geometry']].dissolve(by='COUNTYNAME')
+taiwan_cnty['geometry'] = taiwan_cnty.buffer(0)
 
-TM2 = 3826
-hex_grid_raw = pd.read_csv('../ComputedData/Grid/hex_grid.csv')
-hex_grid_raw['geometry'] = hex_grid_raw['geometry'].apply(wkt.loads)
-hex_grid = gpd.GeoDataFrame(hex_grid_raw, geometry='geometry').set_crs(TM2, allow_override=True)
-
+# 原始以 0.001 grid 計算出的區域事故及對應索引, 依照 hex_grid 計算出來的GI
 grid_gi_df = pd.read_csv('../ComputedData/Grid/grid_gi.csv')
 grid_gi_df['accident_indices'] = grid_gi_df['accident_indices'].apply(ast.literal_eval)
 grid_gi_df['geometry'] = grid_gi_df['geometry'].apply(wkt.loads)
+
 grid_gi  = gpd.GeoDataFrame(grid_gi_df, geometry='geometry').set_crs(TM2, allow_override=True)
+grid_gi['geometry'] = grid_gi.geometry.centroid
 
-taiwan_tm2 = taiwan.to_crs(TM2)
-
-print('join county to grid')
-
-taiwan_cnty = taiwan_tm2[['COUNTYNAME','geometry']].dissolve(by='COUNTYNAME')
-taiwan_cnty['geometry'] = taiwan_cnty.buffer(0)
-taiwan_cnty = taiwan_cnty.reset_index()
-
-pts = hex_grid.copy()
-pts['geometry'] = pts.geometry.centroid
-
-county_join = gpd.sjoin(
-    pts[['geometry']], taiwan_cnty, how='left', predicate='within'
-)[['COUNTYNAME']]
-
+county_join = gpd.sjoin(grid_gi[['geometry']], taiwan_cnty, how='left', predicate='within')
 grid_gi['COUNTYNAME'] = county_join['COUNTYNAME']
-county_join.head()
 
-print('read full feature')
-all_features_df = pd.read_csv("../ComputedData/ForModel/all_features.csv")
-grid_filter = grid_gi[grid_gi['accident_indices'].str.len() > 0]
+# find all_features at DataPreprocess
+grid_filter = grid_gi[grid_gi['accident_indices'].str.len() > 0].reset_index()
+
+# all_featuresV2 為將離群替換為中位數
+all_features_df = pd.read_csv("../ComputedData/ForModel/all_featuresV2.csv")
+# 移除高共線
+cols = all_features_df.columns[all_features_df.columns.str.contains('事故位置大類別名稱')]
+all_features_df.drop(columns=cols, inplace=True)
 
 # Model preprocess
 from config import for_poly
@@ -131,7 +122,6 @@ proba_test_rf = rf.predict_proba(X_resampled_test)
 y_pred_lr = np.argmax(proba_test_lr, axis=1)
 y_pred_rf = np.argmax(proba_test_rf, axis=1)
 
-import joblib
 joblib.dump(lr, '../ComputedData/ModelPerformance/lr_model.pkl')
 joblib.dump(rf, '../ComputedData/ModelPerformance/rf_model.pkl')
 

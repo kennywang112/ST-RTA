@@ -16,6 +16,7 @@ class MapperPlotterSpring:
         mapper_info: networkx.Graph(Mapper 產生的圖)
         rbind_data: 原始資料的 DataFrame(要從這裡用 ids 聚合出每個 node 的顏色)
         range_lst: [xmin, xmax, ymax, ymin](和你原本一致)
+        encoded_label: node_cond_prob, most_common_encoded_label, ratio_in_data, avg_label
         """
         self.mapper_info = mapper_info        # nx.Graph
         self.rbind_data = rbind_data
@@ -515,3 +516,35 @@ class MapperPlotterSpring:
             plt.close(fig)
         else:
             plt.show()
+
+# mapper_plotter = MapperPlotterSpring(
+#     detailed_results_df['mapper_info'],
+#     all_features_df,
+#     seed=seed, iterations=130, dim=2,
+#     range_lst=[-0.5, 0.5, 0.5, -0.5],
+#     cmap="Reds",
+#     # encoded_label=node_cond_prob
+#     # encoded_label=most_common_encoded_label
+#     encoded_label=ratio_in_data
+#     # encoded_label=avg_label
+# )
+# mapper_plotter.create_mapper_plot(choose, avg=True, size_threshold=50, plot_type='spring')
+# full_info, outliers = mapper_plotter.extract_data()
+# mapper_plotter.map_colors(threshold=0)
+# mapper_plotter.plot(set_label=True, size=500, anchor=(0,0),
+#                     save_path=f"../ComputedData/ForMatrixV2/Plots/o{overlap}i{interval}s{seed}_{choose}.png"
+#                     )
+# mapper_plotter.plot3d_matplotlib(
+#     choose,
+#     avg=False,
+#     save_path=f"../ComputedData/ForMatrixV2/Plots/o{overlap}i{interval}s{seed}_{choose}.png",
+#     size=1200, elev=22, azim=35, dpi=180
+# )
+# mapper_plotter.pvis(
+#     path="mapper_interactive.html",
+#     physics_mode="off",
+#     edge_length_from_layout=True,
+#     scale_xy=900,
+#     node_size_cap=20,
+#     open_browser=True
+# )
