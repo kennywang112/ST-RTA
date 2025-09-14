@@ -12,7 +12,6 @@ analyze_path = os.path.join(parent_dir, "utils")
 
 os.chdir(analyze_path)
 
-import numpy as np
 import pandas as pd
 import geopandas as gpd
 from utils import get_grid, read_data, calculate_gi

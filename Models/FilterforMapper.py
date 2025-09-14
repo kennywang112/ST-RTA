@@ -7,11 +7,22 @@ from sklearn.neighbors import KernelDensity
 
 from utils.utils_tda import *
 
-# all_featuresV2 為將離群替換為中位數
-# 目前拓樸使用all_features進行建立
+# Origin
+# 目前版本拓樸使用all_features進行建立
 all_features_df = pd.read_csv("./ComputedData/ForModel/all_features.csv")
 cols = all_features_df.columns[all_features_df.columns.str.contains('事故位置大類別名稱')] # 高共線
 all_features_df.drop(columns=cols, inplace=True)
+
+# Testing
+# all_features_df = pd.read_csv("./ComputedData/ForModel/all_featuresV2.csv")
+
+# cols1 = all_features_df.columns[all_features_df.columns.str.contains('事故位置大類別名稱')]
+# cols2 = all_features_df.columns[all_features_df.columns.str.contains('號誌動作')]
+# cols3 = all_features_df.columns[all_features_df.columns.str.contains('hotspot')]
+
+# all_features_df.drop(columns=cols1, inplace=True)
+# all_features_df.drop(columns=cols2, inplace=True)
+# all_features_df.drop(columns=cols3, inplace=True)
 
 # PCA
 print('Start PCA')
@@ -37,4 +48,4 @@ filter_centrality = linf_centrality_exact(all_features_df)
 filter_full = np.concatenate([filter_centrality, filter_kde, filter_pca], axis=1)
 
 filter_full = pd.DataFrame(filter_full, columns=['centrality', 'kde', 'pc1', 'pc2', 'pc3', 'pc4', 'pc5'])
-filter_full.to_csv("./ComputedData/ForModel/filtered_data.csv", index=False)
+filter_full.to_csv("./ComputedData/ForModel/filtered_data_test.csv", index=False)
