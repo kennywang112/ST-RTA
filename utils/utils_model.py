@@ -70,9 +70,9 @@ def extract_features(
     return all_features_df
 
 from config import for_poly
-def get_interaction(X):
+from itertools import combinations
 
-    from itertools import combinations
+def get_interaction(X):
 
     groups = {base: [c for c in X.columns if c.startswith(base)] for base in for_poly}
     # 只做不同基底之間的配對
@@ -269,6 +269,7 @@ def hitrate_data(resample_X, resample_y, model_y):
     return hitrate_df
 
 from sklearn.preprocessing import label_binarize
+
 def print_results(proba_test, classes, y_resampled_test):
     """
     proba_test: 預測的概率
@@ -309,6 +310,7 @@ def print_results(proba_test, classes, y_resampled_test):
 
 # NN
 from sklearn.metrics import confusion_matrix, classification_report, roc_auc_score, average_precision_score, accuracy_score, f1_score, recall_score, precision_score
+
 def to_tensors(X_df, y_arr):
     return (torch.from_numpy(np.asarray(X_df, dtype=np.float32)),
             torch.from_numpy(np.asarray(y_arr, dtype=np.int64)))
