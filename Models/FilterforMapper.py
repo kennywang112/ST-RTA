@@ -9,9 +9,9 @@ from utils.utils_tda import *
 
 # Origin
 # 目前版本拓樸使用all_features進行建立
-# all_features_df = pd.read_csv("./ComputedData/ForModel/all_features.csv")
-# cols = all_features_df.columns[all_features_df.columns.str.contains('事故位置大類別名稱')] # 高共線
-# all_features_df.drop(columns=cols, inplace=True)
+all_features_df = pd.read_csv("./ComputedData/ForModel/all_features.csv")
+cols = all_features_df.columns[all_features_df.columns.str.contains('事故位置大類別名稱')] # 高共線
+all_features_df.drop(columns=cols, inplace=True)
 
 # Testing
 # all_features_df = pd.read_csv("./ComputedData/ForModel/all_featuresV2.csv")
