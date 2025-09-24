@@ -2,11 +2,11 @@ import json
 import folium
 import numpy as np
 import pandas as pd
+import seaborn as sns
 import matplotlib.pyplot as plt
-from sklearn.preprocessing import StandardScaler
 from libpysal.weights import KNN
 from esda.moran import Moran_Local
-import seaborn as sns
+from sklearn.preprocessing import StandardScaler
 from matplotlib.font_manager import FontProperties
 
 class LocalMoranAnalysis:
