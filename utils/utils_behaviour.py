@@ -1,5 +1,7 @@
 import matplotlib.pyplot as plt
 import numpy as np
+import networkx as nx
+import plotly.graph_objects as go
 
 browser_market_share = {
     'browsers': ['firefox', 'chrome', 'safari', 'edge', 'ie', 'opera'],
@@ -377,3 +379,145 @@ category_value_map = {
         '未依法令授權指揮交通或指揮不當': 'Failure to follow authorized\n traffic direction or improper command'
     }
 }
+
+def draw_bn_plotly(model, layout_algo="", en=False, width=1000, height=500, seed=42, iter=100):
+    edges = [(str(u), str(v)) for u, v in model['model_edges']]
+    df = model['independence_test'][['source','target','p_value']].copy()
+
+    if en:
+        df['source'] = df['source'].map(feature_name_map).fillna(df['source'])
+        df['target'] = df['target'].map(feature_name_map).fillna(df['target'])
+        edges = [(feature_name_map.get(u, u), feature_name_map.get(v, v)) for (u, v) in edges]
+    else:
+        df['source'] = df['source'].astype(str)
+        df['target'] = df['target'].astype(str)
+
+    p_map = {(s,t):p for s,t,p in df.itertuples(index=False, name=None)}
+    p_map.update({(t,s):p for (s,t),p in list(p_map.items())})
+
+    G = nx.DiGraph()
+    G.add_edges_from(edges)
+
+    pos = (nx.spring_layout(G, seed=seed, iterations=iter) if layout_algo=="spring"
+           else nx.kamada_kawai_layout(G))
+
+    # nodes
+    deg = dict(G.degree())
+    node_x, node_y, node_text, node_size = [], [], [], []
+    for n in G.nodes():
+        x,y = pos[n]
+        node_x.append(x); node_y.append(y)
+        node_text.append(f"{n}<br>degree: {deg.get(n,0)}")
+        # node_size.append(10 + 25*(deg.get(n,1)))
+        node_size.append(50)
+
+    node_trace = go.Scatter(
+        x=node_x, y=node_y, mode='markers+text',
+        text=[str(n) for n in G.nodes()],
+        textposition="middle center",
+        hovertext=node_text, hoverinfo="text",
+        marker=dict(size=node_size, 
+                    # line=dict(width=1), 
+                    line=dict(color="#24475E", width=2),
+                    color="#5390B9")
+    )
+
+    # edge
+    edge_traces = []
+    annotations = []
+    r = 0.15
+    for u, v in G.edges():
+        x0, y0 = pos[u]
+        x1, y1 = pos[v]
+        dx, dy = x1 - x0, y1 - y0
+        d = (dx**2 + dy**2)**0.5
+        if d == 0:
+            continue
+
+        # 起點：從 source 往 target 方向移動 r
+        sx = x0 + dx/d * r
+        sy = y0 + dy/d * r
+        # 終點：從 target 往 source 方向退 r
+        ex = x1 - dx/d * r
+        ey = y1 - dy/d * r
+
+        annotations.append(dict(
+            ax=sx, ay=sy, x=ex, y=ey,
+            xref="x", yref="y", axref="x", ayref="y",
+            showarrow=True, arrowhead=3, arrowsize=2, opacity=0.8
+        ))
+
+    fig = go.Figure(data=edge_traces + [node_trace],
+        layout=go.Layout(
+            template=None, showlegend=False,
+            hovermode='closest',
+            margin=dict(l=10, r=10, t=10, b=10),
+            xaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
+            yaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
+            annotations=annotations,
+            width=width, height=height,
+        )
+    )
+    return fig
+
+def cpd_add_n(parent, child, model, data, cpd=True, threshold=50):
+
+    if cpd:
+        # CPD: P(child | parent) -> counts 也用 parent+child
+        vb_all = parent.copy()
+        vb_all.append(child)
+        counts = (data.groupby(vb_all, dropna=False).size().reset_index(name='n'))
+
+        dfprob_cause_counts = (
+            model
+            .merge(counts, on=vb_all, how='left')
+            .sort_values('p', ascending=False)
+        )
+    else:
+        # Posterior: P(parent | child=v) -> data 已固定 child，counts 只用 parent
+        counts = (data.groupby(parent, dropna=False)
+                       .size()
+                       .reset_index(name='n'))
+
+        dfprob_cause_counts = (
+            model
+            .merge(counts, on=parent, how='left')
+            .sort_values('p', ascending=False)
+        )
+
+    dfprob_cause_counts['n'] = dfprob_cause_counts['n'].fillna(0)
+    filtered = dfprob_cause_counts[dfprob_cause_counts['n'] >= threshold].copy()
+
+    filtered['p'] = round(filtered['p'], 4)
+    filtered['n'] = filtered['n'].astype(int)
+
+    return filtered
+
+def filter_cpd(filtered):
+
+    filtered = filtered[
+        (filtered['速限-第1當事者'] == '0-9') |
+        (filtered['速限-第1當事者'] == '10-19') |
+        (filtered['速限-第1當事者'] == '20-29') |
+        (filtered['速限-第1當事者'] == '30-39') |
+        (filtered['速限-第1當事者'] == '40-49') |
+        (filtered['速限-第1當事者'] == '50-59')
+    ]
+
+    filtered = filtered[filtered['facility'] == 1]
+    filtered = filtered[filtered['道路類別-第1當事者-名稱'] == '市區道路']
+
+    return filtered
+
+def get_outlier(filtered, new_filtered):
+    """
+    Q的計算是基於原始的filtered，但是要讓他對比新的filtered
+    """
+
+    Q1 = filtered['p'].quantile(0.25)
+    Q3 = filtered['p'].quantile(0.75)
+    IQR = Q3 - Q1
+    outliers = new_filtered[new_filtered['p'] > Q3 + 1.5 * IQR]
+    outliers
+
+    return outliers
