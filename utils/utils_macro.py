@@ -257,10 +257,10 @@ def attribute_in_city(combined_data, hot, col, countycity_dct, feature_name_map,
         hot_hex = hot.copy()
         hot_hex['nearest_county'] = hot_hex['nearest_county'].map(countycity_dct)
         city_order = [
-            'Taipei', 'New Taipei',  # Northernmost
-            'Taoyuan', 'Hsinchu City', 'Hsinchu County', 'Yilan County',  # Northern Taiwan
-            'Miaoli County', 'Taichung', 'Changhua County',  # Central Taiwan
-            'Chiayi City', 'Chiayi County', 'Tainan', 'Kaohsiung', 'Pingtung County',  # Southern Taiwan
+            'Taipei City', 'New Taipei City',  # Northernmost
+            'Taoyuan City', 'Hsinchu City', 'Hsinchu County', 'Yilan County',  # Northern Taiwan
+            'Miaoli County', 'Taichung City', 'Changhua County',  # Central Taiwan
+            'Chiayi City', 'Chiayi County', 'Tainan City', 'Kaohsiung City', 'Pingtung County',  # Southern Taiwan
             'Hualien County', 'Taitung County'  # Eastern Taiwan
         ]
 
@@ -288,7 +288,7 @@ def attribute_in_city(combined_data, hot, col, countycity_dct, feature_name_map,
 
         counts = city_data[col].value_counts(normalize=True)  # 計算比例
         for signal_type, ratio in counts.items():
-            result.append({'城市': city, col: signal_type, '比例': ratio})
+            result.append({'County/City': city, col: signal_type, 'Ratio': ratio})
 
     result_df = pd.DataFrame(result)
 
@@ -298,7 +298,7 @@ def attribute_in_city(combined_data, hot, col, countycity_dct, feature_name_map,
         col = feature_name_map.get(col, col)
 
     # 轉成 pivot table 方便比較
-    pivot = result_df.pivot(index='城市', columns=col, values='比例').fillna(0)
+    pivot = result_df.pivot(index='County/City', columns=col, values='Ratio').fillna(0)
 
     pivot_sorted = pivot.loc[city_order]
 
