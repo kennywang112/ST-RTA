@@ -179,7 +179,7 @@ class MapperPlotterSpring:
         print("Data extracted.")
         return self.filtered_info, self.outlier_info
 
-    def map_colors(self, threshold=5, drop_unused_labels=True):
+    def map_colors(self, threshold=5, drop_unused_labels=True, en={}):
         """
         choose: 要用來顯色的欄位（和 create_mapper_plot 保持一致）
         threshold: 只保留在「子圖對應的原始資料子集合」中出現次數 > threshold 的類別
@@ -240,7 +240,11 @@ class MapperPlotterSpring:
             present_cats = df['_cat'].dropna().unique().tolist()
 
             # 依 filtered_categories 的順序排，圖例會更一致
-            ordered_cats = [c for c in filtered_categories if c in present_cats]
+            # ordered_cats = [c for c in filtered_categories if c in present_cats]
+            ordered_cats_cn = [c for c in filtered_categories if c in present_cats]
+
+            df['_cat'] = df['_cat'].map(en).fillna(df['_cat'])
+            ordered_cats = [en.get(c, c) for c in ordered_cats_cn]
 
             # 產生固定 palette（只對仍存在的類別上色）
             color_palette = cm.get_cmap("tab20", len(ordered_cats))
@@ -260,7 +264,6 @@ class MapperPlotterSpring:
             self._cont_cmap = None
 
         self.filtered_info = df
-
         print("Colors mapped.")
         return df
 

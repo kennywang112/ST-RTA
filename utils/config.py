@@ -301,21 +301,23 @@ category_value_map = {
 }
 
 countycity_dct = {
-    '臺南市': 'Tainan',
-    '高雄市': 'Kaohsiung',
+    '臺南市': 'Tainan City',
+    '高雄市': 'Kaohsiung City',
     '嘉義市': 'Chiayi City',
     '嘉義縣': 'Chiayi County',
     '屏東縣': 'Pingtung County',
     '彰化縣': 'Changhua County',
     '雲林縣': 'Yunlin County',
-    '臺中市': 'Taichung',
+    '臺中市': 'Taichung City',
     '苗栗縣': 'Miaoli County',
     '新竹市': 'Hsinchu City',
     '新竹縣': 'Hsinchu County',
     '臺東縣': 'Taitung County',
-    '桃園市': 'Taoyuan',
-    '新北市': 'New Taipei',
-    '臺北市': 'Taipei',
+    '桃園市': 'Taoyuan City',
+    '新北市': 'New Taipei City',
+    '臺北市': 'Taipei City',
     '花蓮縣': 'Hualien County',
-    '宜蘭縣': 'Yilan County'
+    '宜蘭縣': 'Yilan County',
+    '基隆市': 'Keelung City',
+    '南投縣': 'Nantou County'
 }
