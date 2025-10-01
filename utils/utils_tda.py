@@ -6,7 +6,7 @@ from sklearn.preprocessing import normalize
 
 def linf_centrality_exact(df, block_size = 2000):
     """
-    回傳 shape=(n,1) 的 L∞ centrality（每點到最遠點的距離）。
+    回傳 shape=(n,1) 的 L∞ centrality(每點到最遠點的距離)
     - metric: "cosine" 或 "euclidean"
     - block_size: 控制記憶體 (block_size * n distances)
     """
@@ -69,13 +69,13 @@ def cond_prob_mixed(
         alpha=0.5, min_den=0, condition="B|A"
     ):
     """
-    回傳條件機率：
-        - A : 類別欄位, a_is 可為 str 或 可迭代(多類別集合)
-        - B : 可為數值/比例欄位，用 b_rule 指定成立條件(或傳入 callable)
+    Return conditional probability:
+        - A : 類別欄位
+        - B : 可為數值/比例欄位
         - alpha : Laplace smoothing
         - min_den : A 成立的樣本至少要有幾個，否則回 NaN
-        - condition="B|A": P(B | A)(預設；與你原本一致，分母=|A|)
-        - condition="A|B": P(A | B)(反過來，分母=|B|)
+        - condition="B|A": P(B | A)
+        - condition="A|B": P(A | B)
 
     其他參數說明同前。
     """
@@ -129,15 +129,13 @@ def cond_prob_mixed(
 def cond_prob_mixed(subdf, a_col, a_is, b_col, b_rule=">0",
                     alpha=0.5, min_den=0, condition="B|A"):
     """
-    回傳條件機率：
-        - A : 類別欄位, a_is 可為 str 或 可迭代(多類別集合)
-        - B : 可為數值/比例欄位，用 b_rule 指定成立條件(或傳入 callable)
+    Return conditional probability:
+        - A : 類別欄位
+        - B : 可為數值/比例欄位
         - alpha : Laplace smoothing
         - min_den : A 成立的樣本至少要有幾個，否則回 NaN
-        - condition="B|A": P(B | A)(預設；與你原本一致，分母=|A|)
-        - condition="A|B": P(A | B)(反過來，分母=|B|)
-
-    其他參數說明同前。
+        - condition="B|A": P(B | A)
+        - condition="A|B": P(A | B)
     """
 
     # A: 類別欄位是否落在 a_is 這個集合
