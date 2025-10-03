@@ -23,20 +23,20 @@ time_taken <- system.time({
   Mapper <- MapperAlgo(
     filter_values = filter_full,
     percent_overlap = 30,
-    methods = "dbscan",
-    method_params = list(eps = 0.3, minPts = 1),
-    # methods = "hierarchical",
-    # method_params = list(num_bins_when_clustering = 10, method = 'ward.D2'),
+    # methods = "dbscan",
+    # method_params = list(eps = 0.3, minPts = 1),
+    methods = "hierarchical",
+    method_params = list(num_bins_when_clustering = 10, method = 'ward.D2'),
     # methods = "kmeans",
-    # method_params = list(max_kmeans_clusters = 2),
+    # method_params = list(max_kmeans_clusters = 3),
     # methods = "pam",
     # method_params = list(num_clusters = 2),
     cover_type = 'stride',
-    # intervals = 4,
-    interval_width = 0.7,
+    # intervals = 10,
+    interval_width = 1,
     num_cores = 10
   )
 })
 
-MapperPlotter(Mapper, filter_full$centrality, filter_full, type = "forceNetwork")
+MapperPlotter(Mapper, filter_full$centrality, filter_full, type = "forceNetwork", avg=TRUE)
 
