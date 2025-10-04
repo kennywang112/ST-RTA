@@ -1,6 +1,7 @@
 import matplotlib.pyplot as plt
 import numpy as np
 import networkx as nx
+import pandas as pd
 import plotly.graph_objects as go
 
 browser_market_share = {
@@ -257,7 +258,7 @@ def cpd_add_n(parent, child, model, data, cpd=True, threshold=50):
 
     return filtered
 
-def filter_cpd(filtered):
+def filter_cpd_for_hotspot(filtered):
 
     filtered = filtered[
         (filtered['速限-第1當事者'] == '0-9') |
@@ -268,10 +269,10 @@ def filter_cpd(filtered):
         (filtered['速限-第1當事者'] == '50-59')
     ]
 
-    filtered = filtered[filtered['facility'] == 1]
     filtered = filtered[filtered['道路類別-第1當事者-名稱'] == '市區道路']
 
     return filtered
+
 
 def get_outlier(filtered, new_filtered):
     """
@@ -281,7 +282,11 @@ def get_outlier(filtered, new_filtered):
     Q1 = filtered['p'].quantile(0.25)
     Q3 = filtered['p'].quantile(0.75)
     IQR = Q3 - Q1
-    outliers = new_filtered[new_filtered['p'] > Q3 + 1.5 * IQR]
-    outliers
+    outliers_high = new_filtered[new_filtered['p'] > Q3 + 1.5 * IQR]
+    outliers_low = new_filtered[new_filtered['p'] < Q1 - 1.5 * IQR]
+    outliers_high['type'] = 'high'
+    outliers_low['type'] = 'low'
+    outliers = pd.concat([outliers_high , outliers_low], axis=0)
+    print(outliers)
 
     return outliers
