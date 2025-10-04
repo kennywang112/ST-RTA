@@ -286,7 +286,8 @@ def get_outlier(filtered, new_filtered):
     outliers_low = new_filtered[new_filtered['p'] < Q1 - 1.5 * IQR]
     outliers_high['type'] = 'high'
     outliers_low['type'] = 'low'
-    outliers = pd.concat([outliers_high , outliers_low], axis=0)
+    # outliers = pd.concat([outliers_high , outliers_low], axis=0)
+    outliers = pd.concat([outliers_high], axis=0)
     print(outliers)
 
     return outliers
