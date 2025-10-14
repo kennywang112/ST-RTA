@@ -27,8 +27,7 @@ gdf_points = gpd.GeoDataFrame(combined_data,
                               geometry=[Point(xy) for xy in zip(combined_data['經度'], combined_data['緯度'])],
                               crs='EPSG:4326')
 
-gdf_points = gdf_points.to_crs(3826)
 gdf_joined = gpd.sjoin(gdf_points, cnty[['COUNTYNAME', 'geometry']], how='left', predicate='within')
 combined_data['COUNTYNAME'] = gdf_joined['COUNTYNAME'].values
 
-combined_data.to_csv(f'../ComputedData/Accident/combineddata_with_CC.csv', index=False)
+combined_data.to_csv('../ComputedData/Accident/combineddata_with_CC.csv', index=False)
