@@ -23,31 +23,11 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import confusion_matrix, classification_report, roc_auc_score, average_precision_score, accuracy_score, f1_score, recall_score, precision_score
 from utils_model import get_interaction
-from utils import read_data
+from utils import read_data, read_taiwan_specific
 
 print('read data')
 combined_data = read_data()
-
-TM2 = 3826
-taiwan = gpd.read_file('../Data/OFiles_9e222fea-bafb-4436-9b17-10921abc6ef2/TOWN_MOI_1140318.shp')
-taiwan = taiwan[(~taiwan['TOWNNAME'].isin(['旗津區', '頭城鎮', '蘭嶼鄉', '綠島鄉', '琉球鄉'])) & 
-                (~taiwan['COUNTYNAME'].isin(['金門縣', '連江縣', '澎湖縣']))].to_crs(TM2)
-taiwan_cnty = taiwan[['COUNTYNAME','geometry']].dissolve(by='COUNTYNAME')
-taiwan_cnty['geometry'] = taiwan_cnty.buffer(0)
-
-# 原始以 0.001 grid 計算出的區域事故及對應索引, 依照 hex_grid 計算出來的GI
-grid_gi_df = pd.read_csv('../ComputedData/Grid/grid_gi.csv')
-grid_gi_df['accident_indices'] = grid_gi_df['accident_indices'].apply(ast.literal_eval)
-grid_gi_df['geometry'] = grid_gi_df['geometry'].apply(wkt.loads)
-
-grid_gi  = gpd.GeoDataFrame(grid_gi_df, geometry='geometry').set_crs(TM2, allow_override=True)
-grid_gi['geometry'] = grid_gi.geometry.centroid
-
-county_join = gpd.sjoin(grid_gi[['geometry']], taiwan_cnty, how='left', predicate='within')
-grid_gi['COUNTYNAME'] = county_join['COUNTYNAME']
-
-# find all_features at DataPreprocess
-grid_filter = grid_gi[grid_gi['accident_indices'].str.len() > 0].reset_index()
+taiwan, grid_filter = read_taiwan_specific(read_grid=True)
 
 # all_featuresV2 為將離群替換為中位數
 all_features_df = pd.read_csv("../ComputedData/ForModel/all_featuresV2.csv")
@@ -56,7 +36,6 @@ cols = all_features_df.columns[all_features_df.columns.str.contains('事故位�
 all_features_df.drop(columns=cols, inplace=True)
 
 # Model preprocess
-from config import for_poly
 # with county town
 # 原始資料index並非從1開始所以需reset
 new_grid = pd.concat([grid_filter[['hotspot', 'COUNTYNAME']], all_features_df], axis=1)

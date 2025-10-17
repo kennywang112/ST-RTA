@@ -12,13 +12,12 @@ os.chdir(analyze_path)
 
 import pandas as pd
 import geopandas as gpd
-from utils.utils import read_data
+from utils.utils import read_data, read_taiwan_specific
 from shapely.geometry import Point
 
 combined_data = read_data()
-taiwan = gpd.read_file('../Data/OFiles_9e222fea-bafb-4436-9b17-10921abc6ef2/TOWN_MOI_1140318.shp')
-taiwan = taiwan[(~taiwan['TOWNNAME'].isin(['旗津區', '頭城鎮', '蘭嶼鄉', '綠島鄉', '琉球鄉'])) & 
-                (~taiwan['COUNTYNAME'].isin(['金門縣', '連江縣', '澎湖縣']))]
+taiwan, grid_filter = read_taiwan_specific(read_grid=False
+                                           )
 taiwan_cnty = taiwan[['COUNTYNAME','geometry']].dissolve(by='COUNTYNAME')
 taiwan_cnty['geometry'] = taiwan_cnty.buffer(0)
 cnty = taiwan_cnty.reset_index()

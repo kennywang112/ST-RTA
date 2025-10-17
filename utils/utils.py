@@ -9,6 +9,8 @@ import matplotlib.colors as mcolors
 from shapely.geometry import Polygon
 from libpysal.weights import DistanceBand, Queen, KNN
 
+TM2 = 3826
+
 def read_data():
     dataA1 = pd.read_csv('../ComputedData/Accident/DataA1_with_MYP.csv')
     dataA2 = pd.read_csv('../ComputedData/Accident/DataA2_with_MYP.csv')
@@ -24,13 +26,45 @@ def read_data():
 
     # 替換離群值成中位數
     median_speed = combined_data.loc[combined_data['速限-第1當事者'] < 200, '速限-第1當事者'].median()
-    median_age = combined_data.loc[(combined_data['當事者事故發生時年齡'] > 0) & (combined_data['當事者事故發生時年齡'] < 100),
+    median_age = combined_data.loc[(combined_data['當事者事故發生時年齡'] > 0) & 
+                                   (combined_data['當事者事故發生時年齡'] < 100),
                     '當事者事故發生時年齡'].median()
     combined_data.loc[combined_data['速限-第1當事者'] >= 200, '速限-第1當事者'] = median_speed
     combined_data.loc[(combined_data['當事者事故發生時年齡'] >= 100) | 
                     (combined_data['當事者事故發生時年齡'] <= 0), '當事者事故發生時年齡'] = median_age
 
     return combined_data
+
+import ast
+import geopandas as gpd
+from shapely import wkt
+
+def read_taiwan_specific(read_grid=False):
+    taiwan = gpd.read_file('../Data/OFiles_9e222fea-bafb-4436-9b17-10921abc6ef2/TOWN_MOI_1140318.shp')
+    taiwan = taiwan[(~taiwan['TOWNNAME'].isin(['旗津區', '頭城鎮', '蘭嶼鄉', '綠島鄉', '琉球鄉'])) & 
+                    (~taiwan['COUNTYNAME'].isin(['金門縣', '連江縣', '澎湖縣']))].to_crs(TM2)
+
+    if read_grid:
+        taiwan_cnty = taiwan[['COUNTYNAME','geometry']].dissolve(by='COUNTYNAME')
+        taiwan_cnty['geometry'] = taiwan_cnty.buffer(0)
+
+        # 原始以 0.001 grid 計算出的區域事故及對應索引, 依照 hex_grid 計算出來的GI
+        grid_gi_df = pd.read_csv('../ComputedData/Grid/grid_gi.csv')
+        grid_gi_df['accident_indices'] = grid_gi_df['accident_indices'].apply(ast.literal_eval)
+        grid_gi_df['geometry'] = grid_gi_df['geometry'].apply(wkt.loads)
+        grid_gi  = gpd.GeoDataFrame(grid_gi_df, geometry='geometry').set_crs(TM2, allow_override=True)
+        grid_gi['geometry'] = grid_gi.geometry.centroid
+
+        county_join = gpd.sjoin(grid_gi[['geometry']], taiwan_cnty, how='left', predicate='within')
+        grid_gi['COUNTYNAME'] = county_join['COUNTYNAME']
+        # 這些都是離島資料，因為在taiwan被篩選掉了，所以會因為對應不到所以回傳空值
+        grid_filter = grid_gi[grid_gi['accident_indices'].str.len() > 0]
+        grid_filter.reset_index(inplace=True)
+
+    else:
+        grid_filter = None
+
+    return taiwan, grid_filter
 
 def create_hexagon(center_x, center_y, size):
     angles = np.linspace(0, 2 * np.pi, 7)

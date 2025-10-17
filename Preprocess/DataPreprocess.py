@@ -6,14 +6,12 @@ including data cleaning, taiwan process, to get `hex_grid` and
 
 import pandas as pd
 import geopandas as gpd
-from utils.utils import get_grid, read_data, calculate_gi
+from utils.utils import get_grid, read_data, calculate_gi, read_taiwan_specific
 
 version = 'V2'
 
 combined_data = read_data()
-taiwan = gpd.read_file('./Data/OFiles_9e222fea-bafb-4436-9b17-10921abc6ef2/TOWN_MOI_1140318.shp')
-taiwan = taiwan[(~taiwan['TOWNNAME'].isin(['旗津區', '頭城鎮', '蘭嶼鄉', '綠島鄉', '琉球鄉'])) & 
-                (~taiwan['COUNTYNAME'].isin(['金門縣', '連江縣', '澎湖縣']))]
+taiwan, grid_filter = read_taiwan_specific(read_grid=True)
 
 print('Start Get Grid')
 hex_grid = get_grid(combined_data, hex_size=0.001, threshold=-1)
@@ -35,9 +33,6 @@ from config import select_group
 from utils_model import extract_features
 
 all_features_list = []
-
-grid_filter = grid_gi[grid_gi['accident_indices'].str.len() > 0]
-grid_filter.reset_index(inplace=True)
 
 for rows in range(grid_filter.shape[0]):
     features = extract_features(grid_filter, combined_data, select_group, rows)
