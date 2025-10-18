@@ -69,7 +69,10 @@ def extract_features(
 
     return all_features_df
 
-from config import for_poly
+try:
+    from utils.config import for_poly
+except ImportError:
+    from config import for_poly
 from itertools import combinations
 
 def get_interaction(X):

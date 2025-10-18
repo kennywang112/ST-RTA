@@ -16,7 +16,7 @@ facilities = {
     'parkinglot': parkinglot
 }
 
-os.makedirs("./ComputedData/Accident", exist_ok=True)
+# os.makedirs("./ComputedData/Accident", exist_ok=True)
 
 def Calculate(X, facility_dict, name):
 
@@ -43,7 +43,7 @@ def Calculate(X, facility_dict, name):
 
     # Step 4: 清理和儲存
     gdf_data.drop(columns=['geometry', 'buffer'], inplace=True)
-    gdf_data.to_csv(f'./ComputedData/Accident/{name}.csv', index=False, encoding='utf-8')
+    gdf_data.to_csv(f'./ComputedDataV2/Accident/{name}.csv', index=False, encoding='utf-8')
 
 Calculate(dataA1, facilities, 'DataA1_with_MYP')
 Calculate(dataA2, facilities, 'DataA2_with_MYP')

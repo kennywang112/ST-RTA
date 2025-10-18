@@ -4,11 +4,20 @@ including data cleaning, taiwan process, to get `hex_grid` and
 `grid_gi`
 """
 
+import os
+import pandas as pd
+
+current_dir = os.getcwd()
+parent_dir = os.path.dirname(current_dir)
+analyze_path = os.path.join(parent_dir, "ST-RTA/utils")
+os.chdir(analyze_path)
+
 import pandas as pd
 import geopandas as gpd
 from utils.utils import get_grid, read_data, calculate_gi, read_taiwan_specific
 
-version = 'V2'
+version = 'V1'
+ComputedDataVersion = 'V2'
 
 combined_data = read_data()
 taiwan, grid_filter = read_taiwan_specific(read_grid=True)
@@ -17,11 +26,11 @@ print('Start Get Grid')
 hex_grid = get_grid(combined_data, hex_size=0.001, threshold=-1)
 taiwan = taiwan.to_crs(hex_grid.crs)  # 確保 CRS 一致
 hex_grid = hex_grid[hex_grid.intersects(taiwan.unary_union)]
-hex_grid.to_csv(f'./ComputedData/Grid/hex_grid{version}.csv', index=False)
+hex_grid.to_csv(f'../ComputedData{ComputedDataVersion}/Grid/hex_grid{version}.csv', index=False)
 
 print('Start GI')
 grid_gi = calculate_gi(6, hex_grid, adjacency='knn')
-grid_gi.to_csv(f'./ComputedData/Grid/grid_gi{version}.csv', index=False)
+grid_gi.to_csv(f'../ComputedData{ComputedDataVersion}/Grid/grid_gi{version}.csv', index=False)
 
 """
 This is for model feature concat
@@ -29,8 +38,8 @@ logic: get all select group, which is then convert to proportion
 """
 print('Start Extract')
 
-from config import select_group
-from utils_model import extract_features
+from utils.config import select_group
+from utils.utils_model import extract_features
 
 all_features_list = []
 
@@ -48,4 +57,4 @@ all_features_df[['mrt_100m_count_mean', 'youbike_100m_count_mean', 'parkinglot_1
 
 all_features_df['hotspot'] = grid_filter['hotspot']
 
-all_features_df.to_csv(f"./ComputedData/ForModel/all_features{version}.csv", index=False)
+all_features_df.to_csv(f"../ComputedData{ComputedDataVersion}/ForModel/all_features{version}.csv", index=False)

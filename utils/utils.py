@@ -12,8 +12,8 @@ from libpysal.weights import DistanceBand, Queen, KNN
 TM2 = 3826
 
 def read_data():
-    dataA1 = pd.read_csv('../ComputedData/Accident/DataA1_with_MYP.csv')
-    dataA2 = pd.read_csv('../ComputedData/Accident/DataA2_with_MYP.csv')
+    dataA1 = pd.read_csv('../ComputedDataV2/Accident/DataA1_with_MYP.csv')
+    dataA2 = pd.read_csv('../ComputedDataV2/Accident/DataA2_with_MYP.csv')
 
     filtered_A2 = dataA2[dataA2['當事者順位'] == 1].copy()
     filtered_A1 = dataA1[dataA1['當事者順位'] == 1].copy()
@@ -41,7 +41,7 @@ from shapely import wkt
 
 def read_taiwan_specific(read_grid=False):
     taiwan = gpd.read_file('../Data/OFiles_9e222fea-bafb-4436-9b17-10921abc6ef2/TOWN_MOI_1140318.shp')
-    taiwan = taiwan[(~taiwan['TOWNNAME'].isin(['旗津區', '頭城鎮', '蘭嶼鄉', '綠島鄉', '琉球鄉'])) & 
+    taiwan = taiwan[(~taiwan['TOWNNAME'].isin(['旗津區', '蘭嶼鄉', '綠島鄉', '琉球鄉'])) & 
                     (~taiwan['COUNTYNAME'].isin(['金門縣', '連江縣', '澎湖縣']))].to_crs(TM2)
 
     if read_grid:

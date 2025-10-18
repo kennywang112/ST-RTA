@@ -15,9 +15,10 @@ import geopandas as gpd
 from utils.utils import read_data, read_taiwan_specific
 from shapely.geometry import Point
 
+V = '2'
+
 combined_data = read_data()
-taiwan, grid_filter = read_taiwan_specific(read_grid=False
-                                           )
+taiwan, grid_filter = read_taiwan_specific(read_grid=False)
 taiwan_cnty = taiwan[['COUNTYNAME','geometry']].dissolve(by='COUNTYNAME')
 taiwan_cnty['geometry'] = taiwan_cnty.buffer(0)
 cnty = taiwan_cnty.reset_index()
@@ -29,4 +30,4 @@ gdf_points = gpd.GeoDataFrame(combined_data,
 gdf_joined = gpd.sjoin(gdf_points, cnty[['COUNTYNAME', 'geometry']], how='left', predicate='within')
 combined_data['COUNTYNAME'] = gdf_joined['COUNTYNAME'].values
 
-combined_data.to_csv('../ComputedData/Accident/combineddata_with_CC.csv', index=False)
+combined_data.to_csv(f'../ComputedDataV{V}/Accident/combineddata_with_CC.csv', index=False)
