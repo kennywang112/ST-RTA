@@ -8,6 +8,7 @@ import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
 from shapely.geometry import Polygon
 from libpysal.weights import DistanceBand, Queen, KNN
+from shapely.geometry import box
 
 TM2 = 3826
 
@@ -41,8 +42,13 @@ from shapely import wkt
 
 def read_taiwan_specific(read_grid=False):
     taiwan = gpd.read_file('../Data/OFiles_9e222fea-bafb-4436-9b17-10921abc6ef2/TOWN_MOI_1140318.shp')
-    taiwan = taiwan[(~taiwan['TOWNNAME'].isin(['旗津區', '蘭嶼鄉', '綠島鄉', '琉球鄉'])) & 
+    taiwan = taiwan[(~taiwan['TOWNNAME'].isin(['蘭嶼鄉', '綠島鄉', '琉球鄉'])) & 
                     (~taiwan['COUNTYNAME'].isin(['金門縣', '連江縣', '澎湖縣']))].to_crs(TM2)
+
+    minx, miny, maxx, maxy = taiwan.total_bounds
+    clip_box = box(minx, miny, 380000, maxy)
+    clipper = gpd.GeoDataFrame(geometry=[clip_box], crs=taiwan.crs)
+    taiwan = gpd.clip(taiwan, clipper)
 
     if read_grid:
         taiwan_cnty = taiwan[['COUNTYNAME','geometry']].dissolve(by='COUNTYNAME')
@@ -79,11 +85,14 @@ def get_grid(data, specific_area=None, hex_size=0.01, threshold=0):
     # 台灣約395,144 km
     hex_size = 1  # 度數，1 度 ≈ 111 公里
     """
-    gdf = gpd.GeoDataFrame(data, geometry=gpd.points_from_xy(data['經度'], data['緯度']))
-    if gdf.crs is None:
-        gdf.set_crs(epsg=4326, inplace=True)
-    else:
+
+    if isinstance(data, gpd.GeoDataFrame) and 'geometry' in data.columns:
+        gdf = data.copy()
+        if gdf.crs is None:
+            gdf.set_crs(epsg=4326, inplace=True)
         gdf = gdf.to_crs(epsg=4326)
+    else:
+        gdf = gpd.GeoDataFrame(data.copy(), geometry=gpd.points_from_xy(data['經度'], data['緯度']), crs='EPSG:4326')
 
     gdf = gdf[
         (gdf['經度'] >= 119.7) & (gdf['經度'] <= 122.1) &
@@ -91,7 +100,7 @@ def get_grid(data, specific_area=None, hex_size=0.01, threshold=0):
     ]
     # 計算範圍 (bounding box)
     if specific_area is not None:
-        bounds = specific_area.to_crs(epsg=4326).total_bounds  # (minx, miny, maxx, maxy)
+        bounds = specific_area.to_crs(epsg=4326).total_bounds # (minx, miny, maxx, maxy)
     else:
         bounds = gdf.total_bounds
     minx, miny, maxx, maxy = bounds
@@ -138,22 +147,18 @@ def get_grid(data, specific_area=None, hex_size=0.01, threshold=0):
     # 將事故點分配到 hexagon
     joined = gpd.sjoin(gdf, hex_grid, how='left', predicate='within')
 
-    def calculate_weighted_accidents(group):
-        # 計算加權事故數量
-        return group.apply(lambda row: row['num_accidents'] * 2.714 if row['source'] == 'A1' else row['num_accidents'], axis=1).sum()
-
-    hex_grid['num_accidents'] = joined.groupby('index_right').apply(calculate_weighted_accidents)
+    weights = np.where(joined['source'] == 'A1', 2.714, 1.0)
+    joined['weighted'] = joined['num_accidents'] * weights
+    num_by_hex = joined.groupby('index_right')['weighted'].sum()
+    hex_grid['num_accidents'] = num_by_hex.reindex(hex_grid.index, fill_value=0)
 
     # 每個 hexagon 內事故的原始索引 list
-    hex_grid['accident_indices'] = hex_grid.index.map(lambda idx: list(joined.index[joined['index_right'] == idx]))
+    idx_map = joined.groupby('index_right').apply(lambda s: list(s.index))
+    hex_grid['accident_indices'] = idx_map.reindex(hex_grid.index).apply(lambda x: x if isinstance(x, list) else [])
 
-    # 沒有事故的 hexagon 設為 0
-    hex_grid['num_accidents'] = hex_grid['num_accidents'].fillna(0)#.astype(int)
-    hex_grid['accident_indices'] = hex_grid['accident_indices'].apply(lambda x: x if isinstance(x, list) else [])
-
-    hex_grid = hex_grid[hex_grid['num_accidents'] > threshold]
-    hex_grid.to_crs(epsg=3826, inplace=True)
-
+    hex_grid = hex_grid[hex_grid['num_accidents'] > threshold].copy()
+    hex_grid = hex_grid.to_crs(epsg=TM2)
+    
     return hex_grid
 
 def specific_polygon(df, taiwan, county=None):
@@ -166,23 +171,15 @@ def specific_polygon(df, taiwan, county=None):
     gdf_points = gpd.GeoDataFrame(
         df,
         geometry=gpd.points_from_xy(df['經度'], df['緯度']),
-        crs="EPSG:4326"  # WGS84
+        crs="EPSG:4326" # WGS84
     )
-
-    # 轉到和 taiwan 一樣的座標系
     gdf_points = gdf_points.to_crs(taiwan_specific.crs)
-
-    # 做空間篩選 — 找在 taiwan Polygon 裡的點
-    # 用 spatial join
     points_in_taiwan = gpd.sjoin(gdf_points, taiwan_specific, predicate='within', how='inner')
 
-    # points_in_taiwan 現在就是落在台北/新北/桃園的點
-    # 如果要拿回原本的欄位：
-    specific_A2 = points_in_taiwan.drop(columns=['index_right'])  # sjoin多的欄位可以丟掉
-    print(specific_A2.shape)
-    taiwan_specific.to_crs(epsg=3826, inplace=True)  # 轉到公尺座標系
+    specific = points_in_taiwan.drop(columns=['index_right']) # sjoin多的欄位可以丟掉
+    taiwan_specific.to_crs(epsg=TM2, inplace=True) # 轉到公尺座標系
 
-    return specific_A2, taiwan_specific
+    return specific, taiwan_specific
 
 def calculate_gi(best_distance, grid, adjacency=None):
 
@@ -215,7 +212,8 @@ def calculate_gi(best_distance, grid, adjacency=None):
 def plot_hex_grid(specific, taiwan_specific, threshold=0, hex_size=0.01):
 
     hex_grid = get_grid(specific, taiwan_specific, hex_size, threshold)
-    hex_grid = hex_grid[hex_grid.intersects(taiwan_specific.unary_union)]
+    taiwan_specific_tm2 = taiwan_specific.to_crs(epsg=TM2)
+    hex_grid = hex_grid[hex_grid.intersects(taiwan_specific_tm2.unary_union)]
 
     fig, ax = plt.subplots(figsize=(10, 10))
     taiwan_specific.plot(ax=ax, color='white', edgecolor='black')  # 底圖：台灣行政區
