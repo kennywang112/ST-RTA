@@ -20,17 +20,39 @@ version = 'V1'
 ComputedDataVersion = 'V2'
 
 combined_data = read_data()
-taiwan, grid_filter = read_taiwan_specific(read_grid=True)
+taiwan, _grid_filter = read_taiwan_specific(read_grid=False)
 
-print('Start Get Grid')
-hex_grid = get_grid(combined_data, hex_size=0.001, threshold=-1)
-taiwan = taiwan.to_crs(hex_grid.crs)  # 確保 CRS 一致
-hex_grid = hex_grid[hex_grid.intersects(taiwan.unary_union)]
-hex_grid.to_csv(f'../ComputedData{ComputedDataVersion}/Grid/hex_grid{version}.csv', index=False)
+# print('Start Get Grid')
+# hex_grid = get_grid(combined_data, hex_size=0.001, threshold=-1)
+# taiwan = taiwan.to_crs(hex_grid.crs)  # 確保 CRS 一致
+# hex_grid = hex_grid[hex_grid.intersects(taiwan.unary_union)]
+# hex_grid.to_csv(f'../ComputedData{ComputedDataVersion}/Grid/hex_grid{version}.csv', index=False)
 
-print('Start GI')
-grid_gi = calculate_gi(6, hex_grid, adjacency='knn')
-grid_gi.to_csv(f'../ComputedData{ComputedDataVersion}/Grid/grid_gi{version}.csv', index=False)
+# print('Start GI')
+# grid_gi = calculate_gi(6, hex_grid, adjacency='knn')
+# grid_gi.to_csv(f'../ComputedData{ComputedDataVersion}/Grid/grid_gi{version}.csv', index=False)
+
+"""
+正常情況第一次不會有grid_filter，所以需要先在這裡執行read_taiwan_specific(read_grid=True)會有的情況
+"""
+import ast
+from shapely import wkt
+
+TM2 = 3826
+grid_gi_df = pd.read_csv(f'../ComputedData{ComputedDataVersion}/Grid/grid_gi{version}.csv') 
+grid_gi_df['accident_indices'] = grid_gi_df['accident_indices'].apply(ast.literal_eval)
+grid_gi_df['geometry'] = grid_gi_df['geometry'].apply(wkt.loads)
+grid_gi  = gpd.GeoDataFrame(grid_gi_df, geometry='geometry').set_crs(TM2, allow_override=True)
+grid_gi['geometry'] = grid_gi.geometry.centroid
+
+taiwan_cnty = taiwan[['COUNTYNAME','geometry']].dissolve(by='COUNTYNAME')
+taiwan_cnty['geometry'] = taiwan_cnty.buffer(0)
+county_join = gpd.sjoin(grid_gi[['geometry']], taiwan_cnty, how='left', predicate='within')
+grid_gi['COUNTYNAME'] = county_join['COUNTYNAME']
+# 這些都是離島資料，因為在taiwan被篩選掉了，所以會因為對應不到所以回傳空值
+grid_filter = grid_gi[grid_gi['accident_indices'].str.len() > 0]
+grid_filter.reset_index(inplace=True)
+
 
 """
 This is for model feature concat

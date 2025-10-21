@@ -6,6 +6,7 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 from libpysal.weights import KNN
 from esda.moran import Moran_Local
+import matplotlib.colors as mcolors
 from sklearn.preprocessing import StandardScaler
 from matplotlib.font_manager import FontProperties
 
@@ -313,3 +314,51 @@ def attribute_in_city(combined_data, hot, col, countycity_dct, feature_name_map,
     plt.show()
 
     return pivot_sorted
+
+def plot_gi_map(grid, taiwan):
+    cmap = mcolors.ListedColormap([
+        '#800026',  # dark red - Hotspot 99%
+        '#FC4E2A',  # red - Hotspot 95%
+        '#FD8D3C',  # light red - Hotspot 90%
+        '#d9d9d9',  # grey - Not Significant
+        '#6baed6',  # light blue - Coldspot 90%
+        '#3182bd',  # blue - Coldspot 95%
+        '#08519c'   # dark blue - Coldspot 99%
+    ])
+
+    # 照順序排
+    categories = [
+        'Hotspot 99%', 
+        'Hotspot 95%', 
+        'Hotspot 90%', 
+        'Not Significant', 
+        'Coldspot 90%', 
+        'Coldspot 95%', 
+        'Coldspot 99%'
+    ]
+
+    grid = grid.to_crs(epsg=4326)  # 把座標轉回跟 folium 一樣
+
+    fig, ax = plt.subplots(figsize=(10, 10))
+    taiwan.to_crs(epsg=4326).plot(ax=ax, color='white', edgecolor='black', linewidth=0.5)
+
+    grid.plot(
+        column='hotspot', 
+        categorical=True, 
+        cmap=cmap, 
+        legend=True, 
+        edgecolor='grey', 
+        linewidth=0.2, 
+        alpha=0.6,
+        ax=ax,
+        categories=categories,
+        legend_kwds={
+            'bbox_to_anchor': (1.05, 1),
+            'loc': 'upper left',
+            'frameon': False
+        }
+    )
+
+    plt.title('Hotspot Analysis (Getis-Ord Gi*) - 90%, 95%, 99% Confidence Levels')
+    plt.axis('off')
+    plt.show()

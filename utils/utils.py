@@ -11,10 +11,11 @@ from libpysal.weights import DistanceBand, Queen, KNN
 from shapely.geometry import box
 
 TM2 = 3826
+computeddata = 'ComputedDataV2'
 
 def read_data():
-    dataA1 = pd.read_csv('../ComputedDataV2/Accident/DataA1_with_MYP.csv')
-    dataA2 = pd.read_csv('../ComputedDataV2/Accident/DataA2_with_MYP.csv')
+    dataA1 = pd.read_csv(f'../{computeddata}/Accident/DataA1_with_MYP.csv')
+    dataA2 = pd.read_csv(f'../{computeddata}/Accident/DataA2_with_MYP.csv')
 
     filtered_A2 = dataA2[dataA2['當事者順位'] == 1].copy()
     filtered_A1 = dataA1[dataA1['當事者順位'] == 1].copy()
@@ -46,7 +47,7 @@ def read_taiwan_specific(read_grid=False):
                     (~taiwan['COUNTYNAME'].isin(['金門縣', '連江縣', '澎湖縣']))].to_crs(TM2)
 
     minx, miny, maxx, maxy = taiwan.total_bounds
-    clip_box = box(minx, miny, 380000, maxy)
+    clip_box = box(minx, 2400000, 380000, maxy)
     clipper = gpd.GeoDataFrame(geometry=[clip_box], crs=taiwan.crs)
     taiwan = gpd.clip(taiwan, clipper)
 
@@ -55,7 +56,7 @@ def read_taiwan_specific(read_grid=False):
         taiwan_cnty['geometry'] = taiwan_cnty.buffer(0)
 
         # 原始以 0.001 grid 計算出的區域事故及對應索引, 依照 hex_grid 計算出來的GI
-        grid_gi_df = pd.read_csv('../ComputedData/Grid/grid_gi.csv')
+        grid_gi_df = pd.read_csv(f'../{computeddata}/Grid/grid_giV1.csv')
         grid_gi_df['accident_indices'] = grid_gi_df['accident_indices'].apply(ast.literal_eval)
         grid_gi_df['geometry'] = grid_gi_df['geometry'].apply(wkt.loads)
         grid_gi  = gpd.GeoDataFrame(grid_gi_df, geometry='geometry').set_crs(TM2, allow_override=True)

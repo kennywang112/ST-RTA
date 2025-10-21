@@ -35,10 +35,12 @@ def Calculate(X, facility_dict, name):
         gdf_facility = gpd.GeoDataFrame(facility, geometry='geometry', crs="EPSG:4326").to_crs(epsg=3826)
 
         # 空間join
-        joined = gpd.sjoin(gdf_buffer, gdf_facility, how='left', predicate='contains')
-        counts = joined.groupby(joined.index).size()
+        joined = gpd.sjoin(gdf_buffer, gdf_facility, how='left', predicate='intersects')
+        joined['index_left'] = joined.index
+        valid = joined[~joined['index_right'].isna()]
+        counts = valid.groupby('index_left').size().reindex(gdf_buffer.index, fill_value=0)
 
-        # 新增欄位: 該設施在 500 公尺內的數量
+        # 新增欄位: 該設施在 100 公尺內的數量
         gdf_data[f'{label}_100m_count'] = gdf_data.index.map(counts).fillna(0).astype(int)
 
     # Step 4: 清理和儲存

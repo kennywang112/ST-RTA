@@ -23,5 +23,5 @@ for i in range(1, 9):
 
 dataA2 = dataA2.astype({'發生年度': 'int32', '發生月份': 'int32'})
 
-dataA1.to_csv('./Data/Accident/A1_new.csv', index=False)
-dataA2.to_csv('./Data/Accident/A2_new.csv', index=False)
+dataA1.to_csv('./Data/Accident/A1.csv', index=False)
+dataA2.to_csv('./Data/Accident/A2.csv', index=False)
