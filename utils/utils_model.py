@@ -69,6 +69,44 @@ def extract_features(
 
     return all_features_df
 
+from imblearn.under_sampling import RandomUnderSampler
+from sklearn.model_selection import train_test_split
+
+def model_preprocess(grid_filter, all_features_df):
+    # with county town
+    # 原始資料index並非從1開始所以需reset
+    new_grid = pd.concat([grid_filter[['COUNTYNAME']], all_features_df], axis=1)
+    county_dummies = pd.get_dummies(new_grid['COUNTYNAME'], prefix='county')
+    new_grid_encoded = pd.concat([new_grid.drop(['COUNTYNAME'], axis=1), county_dummies], axis=1)
+
+    # binary hotspot
+    new_grid_encoded['hotspot'] = new_grid_encoded['hotspot'].apply(lambda x: 'Hotspot' if 'Hotspot' in str(x) else 'Not Hotspot')
+    le = LabelEncoder()
+    # y = le.fit_transform(new_grid_encoded['hotspot'])
+    y = new_grid_encoded['hotspot'].map({'Not Hotspot': 0, 'Hotspot': 1}).values
+    X = new_grid_encoded.drop(columns=['hotspot'])
+    le.classes_ = ['Not Hotspot', 'Hotspot']
+
+    # interaction
+    from utils_model import get_interaction
+    X_interaction = get_interaction(X)
+    X_train, X_test, y_train, y_test = train_test_split(
+        X_interaction, y, test_size=0.2, stratify=y, random_state=42
+    )
+    y_train = pd.Series(y_train, index=X_train.index)
+    y_test  = pd.Series(y_test,  index=X_test.index)
+
+    # undersampling
+    cls_counts = y_test.value_counts()
+    min_count = cls_counts.min()
+    rus_test = RandomUnderSampler(
+        sampling_strategy={int(c): int(min_count) for c in cls_counts.index},
+        random_state=42
+    )
+    X_resampled_test, y_resampled_test = rus_test.fit_resample(X_test, y_test)
+
+    return X_train, X_test, y_train, y_test, X_resampled_test, y_resampled_test, le
+
 try:
     from utils.config import for_poly
 except ImportError:

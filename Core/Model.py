@@ -5,67 +5,36 @@ analyze_path = os.path.join(current_dir, "utils")
 
 os.chdir(analyze_path)
 
-import ast
 import joblib
-import pickle
 import numpy as np
 import pandas as pd
-import geopandas as gpd
-from shapely import wkt
 
 import torch
 from torch import nn
 from torch.utils.data import TensorDataset, DataLoader
-from imblearn.under_sampling import RandomUnderSampler
-from sklearn.preprocessing import LabelEncoder
 from sklearn.model_selection import train_test_split, StratifiedKFold, cross_val_score
 from sklearn.linear_model import LogisticRegression
 from sklearn.ensemble import RandomForestClassifier
-from sklearn.metrics import confusion_matrix, classification_report, roc_auc_score, average_precision_score, accuracy_score, f1_score, recall_score, precision_score
-from utils_model import get_interaction
-from utils import read_data, read_taiwan_specific
+from utils_model import model_preprocess, to_tensors, eval_loop
+from utils import read_taiwan_specific
 
 print('read data')
-combined_data = read_data()
+ComputedDataVersion = "V2"
+V = '1'
 taiwan, grid_filter = read_taiwan_specific(read_grid=True)
 
 # all_featuresV2 為將離群替換為中位數
-all_features_df = pd.read_csv("../ComputedData/ForModel/all_featuresV2.csv")
+all_features_df = pd.read_csv(f"../{ComputedDataVersion}/ForModel/all_featuresV{V}.csv")
 # 移除高共線
 cols = all_features_df.columns[all_features_df.columns.str.contains('事故位置大類別名稱')]
+cols2 = all_features_df.columns[all_features_df.columns.str.contains('號誌動作')]
+cols3 = all_features_df.columns[all_features_df.columns.str.contains('original_speed')]
 all_features_df.drop(columns=cols, inplace=True)
+all_features_df.drop(columns=cols2, inplace=True)
+all_features_df.drop(columns=cols3, inplace=True)
 
 # Model preprocess
-# with county town
-# 原始資料index並非從1開始所以需reset
-new_grid = pd.concat([grid_filter[['hotspot', 'COUNTYNAME']], all_features_df], axis=1)
-county_dummies = pd.get_dummies(new_grid['COUNTYNAME'], prefix='county')
-new_grid_encoded = pd.concat([new_grid.drop(['COUNTYNAME'], axis=1), county_dummies], axis=1)
-
-# binary hotspot
-new_grid_encoded['hotspot'] = new_grid_encoded['hotspot'].apply(lambda x: 'Hotspot' if 'Hotspot' in str(x) else 'Not Hotspot')
-
-le = LabelEncoder()
-y = le.fit_transform(new_grid_encoded['hotspot'])
-X = new_grid_encoded.drop(columns=['hotspot'])
-
-# interaction
-X = get_interaction(X)
-
-X_train, X_test, y_train, y_test = train_test_split(
-    X, y, test_size=0.2, stratify=y, random_state=42
-)
-y_train = pd.Series(y_train, index=X_train.index)
-y_test  = pd.Series(y_test,  index=X_test.index)
-
-# with undersampling
-cls_counts = y_test.value_counts()
-min_count = cls_counts.min()
-rus_test = RandomUnderSampler(
-    sampling_strategy={int(c): int(min_count) for c in cls_counts.index},
-    random_state=42
-)
-X_resampled_test, y_resampled_test = rus_test.fit_resample(X_test, y_test)
+X_train, X_test, y_train, y_test, X_resampled_test, y_resampled_test, le = model_preprocess(grid_filter, all_features_df)
 
 print("before US")
 print(pd.Series(y_test).map(dict(enumerate(le.classes_))).value_counts())
@@ -101,13 +70,13 @@ proba_test_rf = rf.predict_proba(X_resampled_test)
 y_pred_lr = np.argmax(proba_test_lr, axis=1)
 y_pred_rf = np.argmax(proba_test_rf, axis=1)
 
-joblib.dump(lr, '../ComputedData/ModelPerformance/lr_model.pkl')
-joblib.dump(rf, '../ComputedData/ModelPerformance/rf_model.pkl')
+joblib.dump(lr, f'../{ComputedDataVersion}/ModelPerformance/lr_model.pkl')
+joblib.dump(rf, f'../{ComputedDataVersion}/ModelPerformance/rf_model.pkl')
 
-# NN
+print('MLP')
 device = torch.device("mps" if torch.backends.mps.is_available() else "cpu")
 INPUT_DIM = X_resampled_test.shape[1]
-NUM_CLASSES = int(len(set(y)))  # 類別 0/1
+NUM_CLASSES = 2
 
 class BinaryMLP(nn.Module):
     def __init__(self, in_dim=INPUT_DIM, num_classes=NUM_CLASSES, drop=0.1):
@@ -137,10 +106,6 @@ X_train_nn, X_val_nn, y_train_nn, y_val_nn = train_test_split(
     X_train, y_train, test_size=0.2, stratify=y_train, random_state=42
 )
 
-def to_tensors(X_df, y_arr):
-    return (torch.from_numpy(np.asarray(X_df, dtype=np.float32)),
-            torch.from_numpy(np.asarray(y_arr, dtype=np.int64)))
-
 X_train_t, y_train_t = to_tensors(X_train, y_train)
 X_val_t, y_val_t = to_tensors(X_val_nn, y_val_nn)
 X_test_t, y_test_t = to_tensors(X_resampled_test, y_resampled_test)
@@ -157,33 +122,6 @@ best_val = -np.inf
 patience = 5
 wait = 0
 epochs = 20
-
-def eval_loop(loader):
-    model.eval()
-    all_logits = []
-    all_y = []
-    with torch.no_grad():
-        for xb, yb in loader:
-            xb = xb.to(device)
-            logits = model(xb)
-            all_logits.append(logits.cpu())
-            all_y.append(yb)
-    logits_all = torch.cat(all_logits)
-    y_all = torch.cat(all_y)
-    probs = torch.softmax(logits_all, dim=1).numpy()
-    preds = probs.argmax(axis=1)
-    acc = accuracy_score(y_all, preds)
-    f1  = f1_score(y_all, preds, average='binary' if probs.shape[1]==2 else 'weighted')
-    recall = recall_score(y_all, preds, average='binary' if probs.shape[1]==2 else 'weighted')
-    if probs.shape[1] == 2:
-        auc = roc_auc_score(y_all, probs[:,1])
-    else:
-        auc = roc_auc_score(y_all, probs, multi_class='ovr', average='weighted')
-
-    conf = confusion_matrix(y_all, preds, labels=range(len(le.classes_)))
-    report = classification_report(y_all, preds, target_names=le.classes_, digits=3)
-
-    return {'acc': acc, 'f1': f1, 'recall': recall, 'auc': auc, 'conf': conf, 'report': report, 'pred_y': preds}
 
 for epoch in range(1, epochs+1):
     model.train()
@@ -202,7 +140,7 @@ for epoch in range(1, epochs+1):
     print(f'Epoch {epoch:02d}/{epochs} | loss {train_loss:.4f} | '
           f'val_acc {val_metrics["acc"]:.3f} | val_f1 {val_metrics["f1"]:.3f} | val_auc {val_metrics["auc"]:.3f}')
 
-    score_for_early = val_metrics["auc"]  # 你也可用 f1
+    score_for_early = val_metrics["auc"]
     if score_for_early > best_val:
         best_val = score_for_early
         wait = 0
@@ -214,3 +152,19 @@ for epoch in range(1, epochs+1):
             break
 
 torch.save(model.state_dict(), '../ComputedData/ModelPerformance/nn_model.pth')
+
+# Start Permutation
+from utils_model import build_groups_with_interactions, PI_ML, PI_NN
+
+groups = build_groups_with_interactions(X_test.columns)
+
+print('lr')
+base_lr, perm_lr = PI_ML(lr, X_test, y_test, groups=groups, n_repeats=10)
+print('rf') 
+base_rf, perm_rf = PI_ML(rf, X_test, y_test, groups=groups, n_repeats=10)
+print('nn')
+base_nn, perm_nn = PI_NN(model, X_test, y_test, groups=groups, n_repeats=10)
+
+perm_lr.to_csv('../ComputedDataV2/Permutation/perm_lrV1.csv')
+perm_rf.to_csv('../ComputedDataV2/Permutation/perm_rfV1.csv')
+perm_nn.to_csv('../ComputedDataV2/Permutation/perm_nnV1.csv')

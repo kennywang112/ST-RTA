@@ -3,8 +3,6 @@ Reanalyze it starting from [here](https://github.com/kennywang112/TrafficTDApyth
 **MacroCounty** and **MicroCounty** calculates nearest neighbor based on county, while **MacroGrid** and **MicroGrid** is based on Grid we generated.
 **Models** folder include not only Mapper Algorithm from TDA, but also three machine learning methods to identify hotspot we generated from Getis-ord.
 
-<img src="Framework.png" alt="Framework" width="400">
-
 ### Data Sources:
 1. [Youbike (deprecated)](https://data.gov.tw/suggests/136458)
 ([New Taipei](https://data.gov.tw/dataset/146969),
