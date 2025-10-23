@@ -2,10 +2,15 @@ import re
 import torch
 import numpy as np
 import pandas as pd
+from config import for_poly
+from itertools import combinations
 from collections import defaultdict
-from sklearn.metrics import average_precision_score, confusion_matrix
+from imblearn.under_sampling import RandomUnderSampler
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import LabelEncoder, label_binarize
+from sklearn.metrics import confusion_matrix, classification_report, roc_auc_score, average_precision_score, accuracy_score, f1_score, recall_score, precision_score
+
 device = torch.device("mps" if torch.backends.mps.is_available() else "cpu")
-from sklearn.preprocessing import LabelEncoder
 
 def get_importance(model, df, specific_col=None):
     if model.__class__.__name__ == 'LogisticRegression':
@@ -69,9 +74,6 @@ def extract_features(
 
     return all_features_df
 
-from imblearn.under_sampling import RandomUnderSampler
-from sklearn.model_selection import train_test_split
-
 def model_preprocess(grid_filter, all_features_df):
     # with county town
     # 原始資料index並非從1開始所以需reset
@@ -107,12 +109,6 @@ def model_preprocess(grid_filter, all_features_df):
 
     return X_train, X_test, y_train, y_test, X_resampled_test, y_resampled_test, le
 
-try:
-    from utils.config import for_poly
-except ImportError:
-    from config import for_poly
-from itertools import combinations
-
 def get_interaction(X):
 
     groups = {base: [c for c in X.columns if c.startswith(base)] for base in for_poly}
@@ -138,11 +134,10 @@ def get_interaction(X):
 
     return X
 
-# build_groups_from_prefix是最基礎的分開方式，原本適用於不考慮交互作用的模型
-# build_groups_with_interactions則是考慮交互作用，但顯示還是以個別欄位為單位
-# build_pair_interaction_groups的單位是兩個不同欄位的交互作用，然後再細分裡面的值
-
 def build_groups_from_prefix(columns, sep="_"):
+    """
+    最基礎的分開方式，原本適用於不考慮交互作用的模型
+    """
     groups = {}
     for c in columns:
         prefix = c.split(sep, 1)[0]
@@ -150,9 +145,11 @@ def build_groups_from_prefix(columns, sep="_"):
     return groups
 
 def build_groups_with_interactions(columns, base_sep="_", inter_pattern=r"\s*x\s*"):
+    """
+    考慮交互作用，但顯示還是以個別欄位為單位
+    """
     def main_prefix(s: str) -> str:
         return s.split(base_sep, 1)[0]
-
     groups = defaultdict(list)
 
     for col in columns:
@@ -171,9 +168,11 @@ def build_groups_with_interactions(columns, base_sep="_", inter_pattern=r"\s*x\s
     return dict(groups)
 
 def build_pair_interaction_groups(columns, base_sep="_", inter_pattern=r"\s*x\s*"):
+    """
+    單位是兩個不同欄位的交互作用，然後再細分裡面的值
+    """
     def main_prefix(s: str) -> str:
         return s.split(base_sep, 1)[0]
-
     pair_groups = defaultdict(list)
 
     for col in columns:
@@ -309,8 +308,6 @@ def hitrate_data(resample_X, resample_y, model_y):
 
     return hitrate_df
 
-from sklearn.preprocessing import label_binarize
-
 def print_results(proba_test, classes, y_resampled_test):
     """
     proba_test: 預測的概率
@@ -349,9 +346,6 @@ def print_results(proba_test, classes, y_resampled_test):
         print(f'PR  AUC macro: {pr_auc_macro:.3f}')
         print(f'PR  AUC wighted: {pr_auc_weight:.3f}')
 
-# NN
-from sklearn.metrics import confusion_matrix, classification_report, roc_auc_score, average_precision_score, accuracy_score, f1_score, recall_score, precision_score
-
 def to_tensors(X_df, y_arr):
     return (torch.from_numpy(np.asarray(X_df, dtype=np.float32)),
             torch.from_numpy(np.asarray(y_arr, dtype=np.int64)))
@@ -383,3 +377,11 @@ def eval_loop(model, loader, le):
     report = classification_report(y_all, preds, target_names=le.classes_, digits=3)
 
     return {'acc': acc, 'f1': f1, 'recall': recall, 'auc': auc, 'conf': conf, 'report': report, 'pred_y': preds}
+
+def metrics_bin(y_true, y_pred):
+    return {
+        'precision': precision_score(y_true, y_pred, pos_label=0),
+        'recall':    recall_score(y_true, y_pred, pos_label=0),
+        'f1':        f1_score(y_true, y_pred, pos_label=0),
+        'accuracy':  accuracy_score(y_true, y_pred),
+    }

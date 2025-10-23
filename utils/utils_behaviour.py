@@ -1,7 +1,8 @@
-import matplotlib.pyplot as plt
 import numpy as np
-import networkx as nx
 import pandas as pd
+import bnlearn as bn
+import networkx as nx
+import matplotlib.pyplot as plt
 import plotly.graph_objects as go
 
 browser_market_share = {
@@ -9,6 +10,19 @@ browser_market_share = {
     'market_share': [8.61, 69.55, 8.36, 4.12, 2.76, 2.43],
     'color': ['#5A69AF', '#579E65', '#F9C784', '#FC944A', '#F24C00', '#00B825']
 }
+
+def get_model(dt, black_list=[], white_list=[]):
+    # 學哪些變數之間有邊，結果是一個DAG
+    model = bn.structure_learning.fit(dt, methodtype='hc', scoretype='bic', bw_list_method='edges',
+                                    # 肇因對於事故類型一定是上游。ex. 不會因為撞路樹而造成患病，而是因為患病才造成撞路樹
+                                    black_list=black_list, white_list=white_list,
+                                    fixed_edges=white_list, max_indegree=None)
+    # 計算每個節點的 條件機率表 (CPT, Conditional Probability Table)
+    model_param = bn.parameter_learning.fit(model, dt, scoretype='bdeu', methodtype='bayes')
+    # 計算邊緣強度，如果p小於顯著就是有相關
+    model_independence = bn.independence_test(model_param, dt, test='chi_square', prune=True)
+
+    return model, model_param, model_independence
 
 # https://matplotlib.org/stable/gallery/misc/packed_bubbles.html
 class BubbleChart:
@@ -272,7 +286,6 @@ def filter_cpd_for_hotspot(filtered):
     filtered = filtered[filtered['道路類別-第1當事者-名稱'] == '市區道路']
 
     return filtered
-
 
 def get_outlier(filtered, new_filtered):
     """

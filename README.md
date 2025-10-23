@@ -18,9 +18,10 @@ Reanalyze it starting from [here](https://github.com/kennywang112/TrafficTDApyth
 2. School Data
 
 ### Data source Update
-Youbike, MRT, Attractions data sources installed in 2025/04/15<br/>
-Parkinglot data sources installed in 2025/04/21<br/>
-Taiwan shape 2025/06/06
+- Youbike, MRT, Attractions data sources installed in 2025/04/15<br/>
+- Parkinglot data sources installed in 2025/04/21<br/>
+- Taiwan shape 2025/06/06
+- Traffic accident data installed in 2025/10/18, include data until Sep
 
 ### Env
 ```shell
@@ -30,9 +31,11 @@ pip install -r requirements.txt
 ```
 
 ### Core
-Analyze/DataPreprocess.py: Preprocess data for grid analyze `grid_gi` and model input data `all_features`<br/>
-Models/Model.py: Run ML model from `all_features`<br/>
-Models/FilterforMapper.py: Get the filter function for Mapper from `all_features` data
+- DataCombine: Combine `A1` and `A2` separately in each year, month<br/>
+- DataPreprocess: Preprocess data for grid analyze `grid_gi` and model input data `all_features`<br/>
+- Model: Run ML model from `all_features`<br/>
+- FilterforMapper: Get the filter function for Mapper from `all_features` data<br/>
+- GetCCforCombineddata: Add County name to combined data, get `combineddata_with_CC`
 
 ### Paper
 Some reference papers are stored in [notion](https://www.notion.so/Spatio-temporal-Analysis-Paper-1f275012ce1a800086e2cf4a2b1b3075?source=copy_link)
