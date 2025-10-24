@@ -19,6 +19,9 @@ from utils.utils import get_grid, read_data, calculate_gi, read_taiwan_specific
 version = 'V1'
 ComputedDataVersion = 'V2'
 
+"""
+這裡不需要對combined_data篩空間離群的原因是因為他依照taiwan的範圍去做grid的切割，自動然會把離島的部分去掉
+"""
 combined_data = read_data()
 taiwan, _grid_filter = read_taiwan_specific(read_grid=False)
 
