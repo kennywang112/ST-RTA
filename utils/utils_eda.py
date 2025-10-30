@@ -3,6 +3,20 @@ from config import countycity_dct
 import numpy as np
 import pandas as pd
 
+def speed_bin(data):
+    max_speed = data['速限-第1當事者'].max()
+    bins = range(0, int(max_speed) + 11, 10)
+
+    data['速限-第1當事者'] = pd.cut(
+        data['速限-第1當事者'],
+        bins=bins,
+        right=False, 
+        include_lowest=True,
+        labels=[f"{i}-{i+9}" for i in bins[:-1]]
+    )
+
+    return data['速限-第1當事者']
+
 def youbike_bin(x):
     if x >= 5:
         return '5+'
@@ -36,7 +50,8 @@ class BicycleFacilityAnalyzer:
                                     on=['COUNTYNAME', 'youbike_bin'], how='left').fillna(0)
 
         facility_ratio_df['bike_accident_ratio'] = facility_ratio_df['bike'] / facility_ratio_df['total']
-        facility_ratio_df = facility_ratio_df[['COUNTYNAME', 'youbike_bin', 'bike_accident_ratio', 'total']]
+        facility_ratio_df = facility_ratio_df[facility_ratio_df['bike'] > 0]
+        facility_ratio_df = facility_ratio_df[['COUNTYNAME', 'youbike_bin', 'bike_accident_ratio', 'total', 'bike']]
         facility_ratio_df = facility_ratio_df.sort_values(['COUNTYNAME', 'youbike_bin'])
         facility_ratio_df['COUNTYNAME'] = facility_ratio_df['COUNTYNAME'].map(self.countycity_dct)
 
@@ -45,7 +60,6 @@ class BicycleFacilityAnalyzer:
     def plot_facility_accident_ratio(self, ylabel='Bicycle Accident Ratio'):
         bins = ['0', '1~2', '3~4', '5+']
         countys = self.facility_ratio_df['COUNTYNAME'].unique()
-        print(countys)
         bar_width = 0.2
         x = np.arange(len(countys))
 

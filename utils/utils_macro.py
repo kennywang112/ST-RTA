@@ -5,7 +5,8 @@ import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
 from libpysal.weights import KNN
-from esda.moran import Moran_Local
+from esda.moran import Moran_Local, G_Local, Moran
+from libpysal.weights import Queen, DistanceBand, KNN
 import matplotlib.colors as mcolors
 from sklearn.preprocessing import StandardScaler
 from matplotlib.font_manager import FontProperties
@@ -163,6 +164,92 @@ class LocalMoranAnalysis:
         ).add_to(m)
         return m
 
+class GetisOrdGiAnalysis:
+    def __init__(self, grid, taiwan):
+        self.grid = grid
+        self.taiwan = taiwan
+
+    def calculate_gi(self, best_distance, adjacency=None):
+        """
+        best_distance: when adjacency is 'knn', it indicates the number of neighbors k, 
+                        if adjacency is 'distance', it indicates the distance threshold
+        grid: GeoDataFrame with 'num_accidents' column
+        adjacency: 'knn', 'queen', or 'distance'
+        Returns: GeoDataFrame with 'GiZScore' column added
+        """
+
+        # 建立鄰接矩陣（以中心點）
+        centroids = self.grid.centroid
+        coords = np.array(list(zip(centroids.x, centroids.y)))
+
+        if adjacency=='knn':
+            w = KNN.from_array(coords, k=best_distance)
+        elif adjacency=='queen':
+            w = Queen.from_dataframe(self.grid)
+        else:
+            w = DistanceBand(coords, threshold=best_distance, binary=True, silence_warnings=True)
+
+        w.transform = 'r'
+        y = self.grid['num_accidents'].astype(np.float64).values
+        g_local = G_Local(y, w)
+        self.grid['GiZScore'] = g_local.Zs
+
+        self.grid['hotspot'] = 'Not Significant'
+        self.grid.loc[self.grid['GiZScore'] > 2.58, 'hotspot'] = 'Hotspot 99%'
+        self.grid.loc[(self.grid['GiZScore'] > 1.96) & (self.grid['GiZScore'] <= 2.58), 'hotspot'] = 'Hotspot 95%'
+        self.grid.loc[(self.grid['GiZScore'] > 1.65) & (self.grid['GiZScore'] <= 1.96), 'hotspot'] = 'Hotspot 90%'
+        self.grid.loc[self.grid['GiZScore'] < -2.58, 'hotspot'] = 'Coldspot 99%'
+        self.grid.loc[(self.grid['GiZScore'] >= -2.58) & (self.grid['GiZScore'] < -1.96), 'hotspot'] = 'Coldspot 95%'
+        self.grid.loc[(self.grid['GiZScore'] >= -1.96) & (self.grid['GiZScore'] < -1.65), 'hotspot'] = 'Coldspot 90%'
+
+    def plot_gi_map(self):
+        cmap = mcolors.ListedColormap([
+            '#800026',  # dark red - Hotspot 99%
+            '#FC4E2A',  # red - Hotspot 95%
+            '#FD8D3C',  # light red - Hotspot 90%
+            '#d9d9d9',  # grey - Not Significant
+            '#6baed6',  # light blue - Coldspot 90%
+            '#3182bd',  # blue - Coldspot 95%
+            '#08519c'   # dark blue - Coldspot 99%
+        ])
+
+        # 照順序排
+        categories = [
+            'Hotspot 99%', 
+            'Hotspot 95%', 
+            'Hotspot 90%', 
+            'Not Significant', 
+            'Coldspot 90%', 
+            'Coldspot 95%', 
+            'Coldspot 99%'
+        ]
+
+        grid = self.grid.to_crs(epsg=4326)  # 把座標轉回跟 folium 一樣
+
+        fig, ax = plt.subplots(figsize=(10, 10))
+        self.taiwan.to_crs(epsg=4326).plot(ax=ax, color='white', edgecolor='black', linewidth=0.5)
+
+        grid.plot(
+            column='hotspot', 
+            categorical=True, 
+            cmap=cmap, 
+            legend=True, 
+            edgecolor='grey', 
+            linewidth=0.2, 
+            alpha=0.6,
+            ax=ax,
+            categories=categories,
+            legend_kwds={
+                'bbox_to_anchor': (1.05, 1),
+                'loc': 'upper left',
+                'frameon': False
+            }
+        )
+
+        plt.title('Hotspot Analysis (Getis-Ord Gi*) - 90%, 95%, 99% Confidence Levels')
+        plt.axis('off')
+        plt.show()
+
 myfont = FontProperties(fname=r"/Users/wangqiqian/Library/Fonts/標楷體.ttf")
 sns.set(style="whitegrid", font=myfont.get_name())
 plt.rcParams['font.family'] = ['Arial Unicode Ms']
@@ -315,50 +402,139 @@ def attribute_in_city(combined_data, hot, col, countycity_dct, feature_name_map,
 
     return pivot_sorted
 
-def plot_gi_map(grid, taiwan):
-    cmap = mcolors.ListedColormap([
-        '#800026',  # dark red - Hotspot 99%
-        '#FC4E2A',  # red - Hotspot 95%
-        '#FD8D3C',  # light red - Hotspot 90%
-        '#d9d9d9',  # grey - Not Significant
-        '#6baed6',  # light blue - Coldspot 90%
-        '#3182bd',  # blue - Coldspot 95%
-        '#08519c'   # dark blue - Coldspot 99%
-    ])
 
-    # 照順序排
-    categories = [
-        'Hotspot 99%', 
-        'Hotspot 95%', 
-        'Hotspot 90%', 
-        'Not Significant', 
-        'Coldspot 90%', 
-        'Coldspot 95%', 
-        'Coldspot 99%'
-    ]
+# Not used anymore
+def incremental_spatial_autocorrelation(gdf, value_col, min_dist=1000, max_dist=50000, step=1000):
+    """
+    gdf: CRS (meter)。
+    value_col: 你要做 spatial autocorrelation 的欄位，如num_accidents
+    min_dist: 最小距離 (公尺)
+    max_dist: 最大距離 (公尺)
+    step: 間隔 (公尺)
+    """
 
-    grid = grid.to_crs(epsg=4326)  # 把座標轉回跟 folium 一樣
+    thresholds = np.arange(min_dist, max_dist + step, step)
 
-    fig, ax = plt.subplots(figsize=(10, 10))
-    taiwan.to_crs(epsg=4326).plot(ax=ax, color='white', edgecolor='black', linewidth=0.5)
+    moran_I = []
+    z_scores = []
+    p_values = []
 
-    grid.plot(
-        column='hotspot', 
-        categorical=True, 
-        cmap=cmap, 
-        legend=True, 
-        edgecolor='grey', 
-        linewidth=0.2, 
-        alpha=0.6,
-        ax=ax,
-        categories=categories,
-        legend_kwds={
-            'bbox_to_anchor': (1.05, 1),
-            'loc': 'upper left',
-            'frameon': False
-        }
+    centroids = gdf.centroid
+    coords = np.array(list(zip(centroids.x, centroids.y)))
+    y = gdf[value_col].values
+
+    for thresh in thresholds:
+        print(f"Processing threshold: {thresh} meters")
+        w = DistanceBand(coords, threshold=thresh, binary=True, silence_warnings=True)
+        w.transform = 'r'  # row-standardized
+        moran = Moran(y, w)
+        print(moran.z_norm)
+
+        moran_I.append(moran.I)
+        z_scores.append(moran.z_norm)  # ArcGIS 用的是 Z-score
+        p_values.append(moran.p_norm)
+
+    return thresholds, moran_I, z_scores, p_values
+
+def incremental_spatial_autocorrelation_knn(gdf, value_col, min_k=2, max_k=50, step=1):
+    """
+    gdf: CRS (meter)。
+    value_col: 你要做 spatial autocorrelation 的欄位，如 num_accidents。
+    min_k: 最小鄰居數。
+    max_k: 最大鄰居數。
+    step: 每次增加幾個鄰居。
+    """
+
+    ks = np.arange(min_k, max_k + step, step)
+
+    moran_I = []
+    z_scores = []
+    p_values = []
+
+    centroids = gdf.centroid
+    coords = np.array(list(zip(centroids.x, centroids.y)))
+    y = gdf[value_col].values
+
+    for k in ks:
+        print(f"Processing k = {k} neighbors")
+        w = KNN.from_array(coords, k=k)
+        w.transform = 'r'  # row-standardized
+        moran = Moran(y, w)
+        print(moran.z_norm)
+
+        moran_I.append(moran.I)
+        z_scores.append(moran.z_norm)  # ArcGIS 用的是 Z-score
+        p_values.append(moran.p_norm)
+
+    return ks, moran_I, z_scores, p_values
+
+def plot_map(data, grid, gi=False, count=None):
+    # grid = grid[['hotspot', 'num_accidents', 'mrt_count', 'geometry']].copy()
+    grid = grid.copy()
+    grid = grid.drop(columns=['centroid'], errors='ignore') # 確保不會有centroid欄位，無法被序列化
+    grid_json = json.loads(grid.to_json())
+
+    # 地圖中心點
+    center = [data['緯度'].mean(), data['經度'].mean()]
+
+    # 英文版
+    m = folium.Map(
+        location=center, 
+        zoom_start=10, 
+        tiles='https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}',
+        attr='Esri'
     )
 
-    plt.title('Hotspot Analysis (Getis-Ord Gi*) - 90%, 95%, 99% Confidence Levels')
-    plt.axis('off')
-    plt.show()
+    # 建立底圖
+    # m = folium.Map(location=center, zoom_start=10, tiles='OpenStreetMap')
+
+    if gi:
+        # 加入格網
+        folium.GeoJson(
+            grid_json,
+            style_function=lambda feature: {
+                'fillColor': '#ff0000' if feature['properties']['hotspot'] == 'Hotspot 99%' else
+                            '#ff6666' if feature['properties']['hotspot'] == 'Hotspot 95%' else
+                            '#ffe6e6' if feature['properties']['hotspot'] == 'Hotspot 90%' else
+                            '#cccccc' if feature['properties']['hotspot'] == 'Not Significant' else
+                            '#6666ff' if feature['properties']['hotspot'] == 'Coldspot 90%' else
+                            '#3399ff' if feature['properties']['hotspot'] == 'Coldspot 95%' else
+                            '#0000ff',
+                'color': 'grey',
+                'weight': 0.5,
+                'fillOpacity': 0.6
+            }
+        ).add_to(m)
+    else:
+        folium.GeoJson(
+            grid_json,
+            style_function=lambda feature: {
+                'fillColor': '#FFEDA0' if feature['properties']['num_accidents'] < 100 else
+                            '#FEB24C' if feature['properties']['num_accidents'] < 500 else
+                            '#F03B20',
+                'color': 'grey',
+                'weight': 0.5,
+                'fillOpacity': 0.6
+            },
+            tooltip=folium.GeoJsonTooltip(
+                fields=['num_accidents'],
+                aliases=['Accidents:'],
+                localize=True
+            )
+        ).add_to(m)
+
+    if count is not None:
+        for _, row in grid.iterrows():
+            if row[count] > 0:  # 只顯示有站點的多邊形
+                centroid = row['geometry'].centroid  # 獲取多邊形的中心點
+                folium.CircleMarker(
+                    location=[centroid.y, centroid.x],  # 中心點的經緯度
+                    radius=row[count] * 1,  # 半徑根據特徵調整，放大 2 倍
+                    color='#9a9af5',  # 邊框顏色
+                    fill=True,
+                    fill_color='#9a9af5',  # 填充顏色
+                    fill_opacity=0.5,
+                    tooltip=f"Count: {row[count]}"  # 提示顯示站點數量
+                ).add_to(m)
+
+    return m
