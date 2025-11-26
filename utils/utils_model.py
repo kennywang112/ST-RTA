@@ -74,7 +74,7 @@ def extract_features(
 
     return all_features_df
 
-def model_preprocess(grid_filter, all_features_df):
+def model_preprocess(grid_filter, all_features_df, for_poly=for_poly):
     # with county town
     # 原始資料index並非從1開始所以需reset
     new_grid = pd.concat([grid_filter[['COUNTYNAME']], all_features_df], axis=1)
@@ -90,8 +90,7 @@ def model_preprocess(grid_filter, all_features_df):
     le.classes_ = ['Not Hotspot', 'Hotspot']
 
     # interaction
-    from utils_model import get_interaction
-    X_interaction = get_interaction(X)
+    X_interaction = get_interaction(X, for_poly=for_poly)
     X_train, X_test, y_train, y_test = train_test_split(
         X_interaction, y, test_size=0.2, stratify=y, random_state=42
     )
@@ -109,7 +108,7 @@ def model_preprocess(grid_filter, all_features_df):
 
     return X_train, X_test, y_train, y_test, X_resampled_test, y_resampled_test, le
 
-def get_interaction(X):
+def get_interaction(X, for_poly=for_poly):
 
     groups = {base: [c for c in X.columns if c.startswith(base)] for base in for_poly}
     # 只做不同基底之間的配對
