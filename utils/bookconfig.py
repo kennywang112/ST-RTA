@@ -1,4 +1,4 @@
-# This is for the lane
+# This is for the lane in Mapper
 
 books = { 
     ('hotspot', '車道劃分設施-分道設施-路面邊線名稱_有'): {

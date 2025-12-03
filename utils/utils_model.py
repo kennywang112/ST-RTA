@@ -2,12 +2,11 @@ import re
 import torch
 import numpy as np
 import pandas as pd
-from config import for_poly
 from itertools import combinations
 from collections import defaultdict
 from itertools import combinations, product
-from imblearn.under_sampling import RandomUnderSampler
 from sklearn.model_selection import train_test_split
+from imblearn.under_sampling import RandomUnderSampler
 from sklearn.preprocessing import LabelEncoder, label_binarize
 from sklearn.metrics import confusion_matrix, classification_report, roc_auc_score, average_precision_score, accuracy_score, f1_score, recall_score, precision_score
 
@@ -75,7 +74,22 @@ def extract_features(
 
     return all_features_df
 
-def model_preprocess(grid_filter, all_features_df, for_poly=for_poly, dim='2way_poly'):
+
+BASES_ROAD = [
+    '號誌-號誌種類名稱', '車道劃分設施-分道設施-快車道或一般車道間名稱',
+    '車道劃分設施-分道設施-快慢車道間名稱', '車道劃分設施-分道設施-路面邊線名稱',
+    '事故類型及型態大類別名稱', '車道劃分設施-分向設施大類別名稱',
+    '道路型態大類別名稱', '速限-第1當事者', '道路類別-第1當事者-名稱',
+    'youbike_100m_count', 'mrt_100m_count', 'parkinglot_100m_count', 'county'
+]
+BASES_VEHICLE = ['車輛撞擊部位大類別名稱-最初', '當事者區分-類別-大類別名稱-車種']
+BASES_PERSON = ['cause-group']
+
+def model_preprocess(
+        grid_filter, all_features_df, for_poly, dim='2way_poly', 
+        base_road=BASES_ROAD, base_vehicle=BASES_VEHICLE, base_person=BASES_PERSON,
+        interaction_type='multiply'
+        ):
     # with county town
     # 原始資料index並非從1開始所以需reset
     new_grid = pd.concat([grid_filter[['COUNTYNAME']], all_features_df], axis=1)
@@ -92,13 +106,19 @@ def model_preprocess(grid_filter, all_features_df, for_poly=for_poly, dim='2way_
 
     # interaction
     if dim == '2way_poly':
-        X_interaction = get_interaction(X, for_poly=for_poly)
+        X_interaction = get_interaction(X, for_poly, interaction_type=interaction_type)
     elif dim == '2way':
-        X_interaction = get_interaction_2way(X)
+        X_interaction = get_interaction_2way(
+            X, base_road=base_road, base_vehicle=base_vehicle, 
+            base_person=base_person, interaction_type=interaction_type)
     elif dim == '3way':
-        X_interaction = get_interaction_3way(X)
+        X_interaction = get_interaction_3way(
+            X, base_road=base_road, base_vehicle=base_vehicle, 
+            base_person=base_person, interaction_type=interaction_type)
     elif dim == 'mixed':
-        X_interaction = get_interaction_mixed(X)
+        X_interaction = get_interaction_mixed(
+            X, base_road=base_road, base_vehicle=base_vehicle, 
+            base_person=base_person, interaction_type=interaction_type)
 
     X_train, X_test, y_train, y_test = train_test_split(
         X_interaction, y, test_size=0.2, stratify=y, random_state=42
@@ -117,15 +137,7 @@ def model_preprocess(grid_filter, all_features_df, for_poly=for_poly, dim='2way_
 
     return X_train, X_test, y_train, y_test, X_resampled_test, y_resampled_test, le
 
-BASES_ROAD = [
-    '號誌-號誌種類名稱', '車道劃分設施-分道設施-快車道或一般車道間名稱',
-    '車道劃分設施-分道設施-快慢車道間名稱', '車道劃分設施-分道設施-路面邊線名稱',
-    '事故類型及型態大類別名稱', '車道劃分設施-分向設施大類別名稱',
-    '道路型態大類別名稱', '速限-第1當事者', '道路類別-第1當事者-名稱',
-    'youbike_100m_count', 'mrt_100m_count', 'parkinglot_100m_count', 'county'
-]
-BASES_VEHICLE = ['車輛撞擊部位大類別名稱-最初', '當事者區分-類別-大類別名稱-車種']
-BASES_PERSON = ['cause-group']
+############################################ This starts in V3 ##########################################################
 
 def _generate_interactions_core(X, groups, base_combinations_list):
     """
@@ -166,9 +178,51 @@ def _generate_interactions_core(X, groups, base_combinations_list):
         print("No interaction features generated.")
         return pd.DataFrame(index=X.index)
 
+def _generate_interactions_core(X, groups, base_combinations_list, interaction_type='multiply'):
+    """
+    Args:
+        interaction_type (str): 'multiply' (相乘, AND邏輯) 或 'add' (相加, 累計邏輯)
+    """
+    new_cols = {}
+
+    for bases in base_combinations_list:
+        # 檢查這些是否都在目前的 X 裡面有對應欄位
+        if any(base not in groups for base in bases):
+            continue
+        # prefix對應的實際欄位列表
+        # [['號誌_紅', '號誌_綠'], ['車種_機車', '車種_汽車']]
+        cols_lists = [groups[base] for base in bases]
+
+        for col_combo in product(*cols_lists):
+            # col_combo: tuple，如 ('號誌_紅', '車種_機車')
+            result = X[col_combo[0]].values
+        
+            for i in range(1, len(col_combo)):
+                next_val = X[col_combo[i]].values
+                
+                if interaction_type == 'add':
+                    result = result + next_val
+                else:
+                    result = result * next_val
+
+            if not np.any(result):
+                continue
+
+            # 為了保持後續一致性，不管相加還是相乘名稱仍然使用 " x " 連接
+            name = " x ".join(col_combo)
+            new_cols[name] = result
+            
+    if new_cols:
+        print(f"Generated {len(new_cols)} interaction features ({interaction_type}).")
+        return pd.DataFrame(new_cols, index=X.index)
+    else:
+        print("No interaction features generated.")
+        return pd.DataFrame(index=X.index)
+
 def _get_base_groups(X, base_list):
     """
     prefix 分組
+    return: {'號誌': ['號誌_紅', '號誌_綠'], ...}
     """
     groups = {}
     for base in base_list:
@@ -177,7 +231,9 @@ def _get_base_groups(X, base_list):
             groups[base] = cols
     return groups
 
-def get_interaction(X, for_poly):
+def get_interaction(
+        X, for_poly, interaction_type='multiply'
+        ):
     """
     任意兩兩配對
     """
@@ -185,64 +241,97 @@ def get_interaction(X, for_poly):
     groups = _get_base_groups(X, for_poly)
     
     base_combos = list(combinations(for_poly, 2))
+
+    X_inter = _generate_interactions_core(X, groups, base_combos, interaction_type=interaction_type)
+
+    return pd.concat([X, X_inter], axis=1)
+
+def get_interaction_2way(
+        X, base_road=BASES_ROAD, base_vehicle=BASES_VEHICLE, 
+        base_person=BASES_PERSON, interaction_type='multiply'
+        ):
+    """
+    人、車、路 互配: 
+    This design is for V$ folder, try to not include road in interactions but keep it in 1way,
+    so the interactions only include vehicle and person.
+    """
+
+    base_road = base_road or []
+    base_vehicle = base_vehicle or []
+    base_person = base_person or []
+    all_bases = base_road + base_vehicle + base_person
+
+    if not all_bases:
+            return X
+    groups = _get_base_groups(X, all_bases)
+
+    all_strategies = []
+
+    if base_road and base_vehicle:
+        all_strategies += list(product(base_road, base_vehicle))
+    if base_road and base_person:
+        all_strategies += list(product(base_road, base_person))
+    if base_vehicle and base_person:
+        all_strategies += list(product(base_vehicle, base_person))
     
-    X_inter = _generate_interactions_core(X, groups, base_combos)
+    X_inter = _generate_interactions_core(X, groups, all_strategies, interaction_type=interaction_type)
     
     return pd.concat([X, X_inter], axis=1)
 
-def get_interaction_3way(X):
+def get_interaction_3way(
+        X, base_road=BASES_ROAD, base_vehicle=BASES_VEHICLE, 
+        base_person=BASES_PERSON, interaction_type='multiply'):
     """
-    人、車、路
+    人、車、路: 只配對3way
     """
     
-    all_bases = BASES_ROAD + BASES_VEHICLE + BASES_PERSON
+    all_bases = []
+    if base_road:
+        all_bases += base_road
+    if base_vehicle:
+        all_bases += base_vehicle
+    if base_person:
+        all_bases += base_person
+
     groups = _get_base_groups(X, all_bases)
-    
-    base_combos = list(product(BASES_ROAD, BASES_VEHICLE, BASES_PERSON))
-    
-    X_inter = _generate_interactions_core(X, groups, base_combos)
-    
+
+    base_combos = list(product(base_road, base_vehicle, base_person))
+
+    X_inter = _generate_interactions_core(X, groups, base_combos, interaction_type=interaction_type)
+
     return pd.concat([X, X_inter], axis=1)
 
-def get_interaction_mixed(X):
+def get_interaction_mixed(
+        X, base_road=BASES_ROAD, base_vehicle=BASES_VEHICLE, 
+        base_person=BASES_PERSON, interaction_type='multiply'):
     """
-    人、車、路 互配2way & 3way
+    人、車、路 互配2way & 3way, 不會出現人人、車車、路路
     """
-    
-    all_bases = BASES_ROAD + BASES_VEHICLE + BASES_PERSON
+
+    all_bases = []
+    if base_road:
+        all_bases += base_road
+    if base_vehicle:
+        all_bases += base_vehicle
+    if base_person:
+        all_bases += base_person
+
     groups = _get_base_groups(X, all_bases)
-    
-    combos_3way = list(product(BASES_ROAD, BASES_VEHICLE, BASES_PERSON))
+
+    combos_3way = list(product(base_road, base_vehicle, base_person))
     
     combos_2way = (
-        list(product(BASES_ROAD, BASES_VEHICLE)) +
-        list(product(BASES_ROAD, BASES_PERSON)) +
-        list(product(BASES_VEHICLE, BASES_PERSON))
+        list(product(base_road, base_vehicle)) +
+        list(product(base_road, base_person)) +
+        list(product(base_vehicle, base_person))
     )
     
     all_strategies = combos_3way + combos_2way
-    
-    X_inter = _generate_interactions_core(X, groups, all_strategies)
-    
+
+    X_inter = _generate_interactions_core(X, groups, all_strategies, interaction_type=interaction_type)
+
     return pd.concat([X, X_inter], axis=1)
-
-def get_interaction_2way(X):
-    """
-    人、車、路 互配
-    """
-
-    all_bases = BASES_ROAD + BASES_VEHICLE + BASES_PERSON
-    groups = _get_base_groups(X, all_bases)
-
-    combos_road_vehicle = list(product(BASES_ROAD, BASES_VEHICLE))
-    combos_road_person  = list(product(BASES_ROAD, BASES_PERSON)) 
-    combos_vehicle_person = list(product(BASES_VEHICLE, BASES_PERSON))
-    
-    all_strategies = combos_road_vehicle + combos_road_person + combos_vehicle_person
-    
-    X_inter = _generate_interactions_core(X, groups, all_strategies)
-    
-    return pd.concat([X, X_inter], axis=1)
+########################################################################################################################
 
 def build_groups_from_prefix(columns, sep="_"):
     """
@@ -397,7 +486,7 @@ def hitrate_data(resample_X, resample_y, model_y):
 
         mask = df_hitrate[df_hitrate[col] != False]
         tn, fp, fn, tp = confusion_matrix(
-            mask['y_true'], mask['y_pred'], labels=[1, 0] # 這裡0是Hotspot
+            mask['y_true'], mask['y_pred'], labels=[0, 1] # 這裡0是Hotspot
         ).ravel()
 
         # calculate precision, recall, accuracy, f1-score
@@ -488,10 +577,10 @@ def eval_loop(model, loader, le):
 
     return {'acc': acc, 'f1': f1, 'recall': recall, 'auc': auc, 'conf': conf, 'report': report, 'pred_y': preds}
 
-def metrics_bin(y_true, y_pred):
+def metrics_bin(y_true, y_pred, pos_label=1):
     return {
-        'precision': precision_score(y_true, y_pred, pos_label=0),
-        'recall':    recall_score(y_true, y_pred, pos_label=0),
-        'f1':        f1_score(y_true, y_pred, pos_label=0),
+        'precision': precision_score(y_true, y_pred, pos_label=pos_label),
+        'recall':    recall_score(y_true, y_pred, pos_label=pos_label),
+        'f1':        f1_score(y_true, y_pred, pos_label=pos_label),
         'accuracy':  accuracy_score(y_true, y_pred),
     }

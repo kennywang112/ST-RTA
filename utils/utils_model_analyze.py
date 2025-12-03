@@ -1,5 +1,7 @@
-import matplotlib.pyplot as plt
 import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+from sklearn.metrics import confusion_matrix
 
 def human_vs_road(importance):
 
@@ -78,3 +80,37 @@ def plot_interaction(contain_str, structured_cause, countycity_dct=None, col_tra
     plt.legend(title=contain_str, bbox_to_anchor=(1.02, 1), loc='upper left')
     plt.tight_layout()
     plt.show()
+
+def hitrate_data(resample_X, resample_y, model_y):
+
+    county_cols = [col for col in resample_X.columns if (col.startswith('county_') and len(col) == 10)]
+
+    df_hitrate = resample_X.copy()
+    df_hitrate['y_true'] = resample_y
+    df_hitrate['y_pred'] = model_y
+
+    hitrate = {}
+    for col in county_cols:
+
+        mask = df_hitrate[df_hitrate[col] != False]
+        tn, fp, fn, tp = confusion_matrix(
+            mask['y_true'], mask['y_pred'], labels=[1, 0] # 這裡0是Hotspot
+        ).ravel()
+
+        # calculate precision, recall, accuracy, f1-score
+        precision = tp / (tp + fp) if (tp + fp) > 0 else 0
+        recall = tp / (tp + fn) if (tp + fn) > 0 else 0
+        accuracy = (tp + tn) / (tp + tn + fp + fn) if (tp + tn + fp + fn) > 0 else 0
+        f1 = 2 * (precision * recall) / (precision + recall) if (precision + recall) > 0 else 0
+        hitrate[col] = {
+            'precision': precision,
+            'recall': recall,
+            'accuracy': accuracy,
+            'f1': f1
+        }
+
+    hitrate_df = pd.DataFrame.from_dict(hitrate, orient='index', columns=['precision', 'recall', 'accuracy', 'f1']).sort_values('f1', ascending=False)
+    hitrate_df['county'] = hitrate_df.index
+    hitrate_df['county'] = hitrate_df['county'].str.replace('county_', '')
+
+    return hitrate_df
