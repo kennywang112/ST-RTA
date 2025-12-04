@@ -86,7 +86,7 @@ BASES_VEHICLE = ['車輛撞擊部位大類別名稱-最初', '當事者區分-�
 BASES_PERSON = ['cause-group']
 
 def model_preprocess(
-        grid_filter, all_features_df, for_poly, dim='2way_poly', 
+        grid_filter, all_features_df, for_poly=[], dim='2way_poly', 
         base_road=BASES_ROAD, base_vehicle=BASES_VEHICLE, base_person=BASES_PERSON,
         interaction_type='multiply'
         ):
@@ -106,7 +106,8 @@ def model_preprocess(
 
     # interaction
     if dim == '2way_poly':
-        X_interaction = get_interaction(X, for_poly, interaction_type=interaction_type)
+        X_interaction = get_interaction(
+            X, for_poly, interaction_type=interaction_type)
     elif dim == '2way':
         X_interaction = get_interaction_2way(
             X, base_road=base_road, base_vehicle=base_vehicle, 
@@ -139,47 +140,14 @@ def model_preprocess(
 
 ############################################ This starts in V3 ##########################################################
 
-def _generate_interactions_core(X, groups, base_combinations_list):
+def _generate_interactions_core(
+        X, groups, base_combinations_list, interaction_type='multiply'
+        ):
     """
     1. 先得出prefix groups ('號誌' -> ['號誌_A', '號誌_B'])
     2. Product
     3. 回傳df
-    """
-    new_cols = {}
 
-    for bases in base_combinations_list:
-        # 檢查這些是否都在目前的 X 裡面有對應欄位
-        if any(base not in groups for base in bases):
-            continue
-
-        # prefix對應的實際欄位列表
-        # [['號誌_紅', '號誌_綠'], ['車種_機車', '車種_汽車']]
-        cols_lists = [groups[base] for base in bases]
-
-        for col_combo in product(*cols_lists):
-            # col_combo: tuple，如 ('號誌_紅', '車種_機車')
-
-            prod = X[col_combo[0]].values
-            for i in range(1, len(col_combo)):
-                prod = prod * X[col_combo[i]].values
-            
-            # 若全為 0 則跳過
-            if not np.any(prod):
-                continue
-            
-            # Name: A x B x C
-            name = " x ".join(col_combo)
-            new_cols[name] = prod
-            
-    if new_cols:
-        print(f"Generated {len(new_cols)} interaction features.")
-        return pd.DataFrame(new_cols, index=X.index)
-    else:
-        print("No interaction features generated.")
-        return pd.DataFrame(index=X.index)
-
-def _generate_interactions_core(X, groups, base_combinations_list, interaction_type='multiply'):
-    """
     Args:
         interaction_type (str): 'multiply' (相乘, AND邏輯) 或 'add' (相加, 累計邏輯)
     """
@@ -247,8 +215,8 @@ def get_interaction(
     return pd.concat([X, X_inter], axis=1)
 
 def get_interaction_2way(
-        X, base_road=BASES_ROAD, base_vehicle=BASES_VEHICLE, 
-        base_person=BASES_PERSON, interaction_type='multiply'
+        X, base_road=None, base_vehicle=None, 
+        base_person=None, interaction_type='multiply',
         ):
     """
     人、車、路 互配: 
@@ -264,6 +232,7 @@ def get_interaction_2way(
     if not all_bases:
             return X
     groups = _get_base_groups(X, all_bases)
+    print("Base groups for 2-way interaction:", groups)
 
     all_strategies = []
 
@@ -275,24 +244,24 @@ def get_interaction_2way(
         all_strategies += list(product(base_vehicle, base_person))
     
     X_inter = _generate_interactions_core(X, groups, all_strategies, interaction_type=interaction_type)
+    print("2-way interaction combinations:", X_inter.columns.tolist())
     
     return pd.concat([X, X_inter], axis=1)
 
 def get_interaction_3way(
-        X, base_road=BASES_ROAD, base_vehicle=BASES_VEHICLE, 
-        base_person=BASES_PERSON, interaction_type='multiply'):
+        X, base_road=None, base_vehicle=None, 
+        base_person=None, interaction_type='multiply'):
     """
     人、車、路: 只配對3way
     """
     
-    all_bases = []
-    if base_road:
-        all_bases += base_road
-    if base_vehicle:
-        all_bases += base_vehicle
-    if base_person:
-        all_bases += base_person
+    base_road = base_road or []
+    base_vehicle = base_vehicle or []
+    base_person = base_person or []
+    all_bases = base_road + base_vehicle + base_person
 
+    if not all_bases:
+            return X
     groups = _get_base_groups(X, all_bases)
 
     base_combos = list(product(base_road, base_vehicle, base_person))
@@ -302,20 +271,19 @@ def get_interaction_3way(
     return pd.concat([X, X_inter], axis=1)
 
 def get_interaction_mixed(
-        X, base_road=BASES_ROAD, base_vehicle=BASES_VEHICLE, 
-        base_person=BASES_PERSON, interaction_type='multiply'):
+        X, base_road=None, base_vehicle=None, 
+        base_person=None, interaction_type='multiply'):
     """
     人、車、路 互配2way & 3way, 不會出現人人、車車、路路
     """
 
-    all_bases = []
-    if base_road:
-        all_bases += base_road
-    if base_vehicle:
-        all_bases += base_vehicle
-    if base_person:
-        all_bases += base_person
+    base_road = base_road or []
+    base_vehicle = base_vehicle or []
+    base_person = base_person or []
+    all_bases = base_road + base_vehicle + base_person
 
+    if not all_bases:
+            return X
     groups = _get_base_groups(X, all_bases)
 
     combos_3way = list(product(base_road, base_vehicle, base_person))
