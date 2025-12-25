@@ -1,0 +1,10 @@
+geopandas==1.1.0
+matplotlib==3.9.2
+shapely==2.1.1
+libpysal==4.13.0
+esda==2.7.0
+folium==0.19.7
+seaborn==0.13.2
+numba==0.60.0
+tqdm==4.67.1
+torch==2.2.2
