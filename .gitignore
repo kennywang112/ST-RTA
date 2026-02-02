@@ -3,4 +3,6 @@ ComputedDataV2
 ComputedDataV3
 ComputedDataV4
 Data
-utils/__pycache__
+__pycache__
+.DS_Store
+.vscode
