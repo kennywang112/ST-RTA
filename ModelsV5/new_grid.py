@@ -5,6 +5,8 @@ from shapely.geometry import Polygon, box
 from shapely import wkt
 from esda.getisord import G_Local
 import libpysal
+import matplotlib.pyplot as plt
+import matplotlib.colors as mcolors
 
 class TaiwanBaseGridGenerator:
     def __init__(self, osm_dir, boundary_shp_path):
@@ -242,7 +244,7 @@ class AccidentHotspotAnalyzer:
         w = libpysal.weights.util.fill_diagonal(w, 1)
 
         y = work_gdf[target_col].values.astype(float)
-        g_local = G_Local(y, w, transform='R', star=None)
+        g_local = G_Local(y, w, transform='R', star=True)
 
         work_gdf['gi_z'] = g_local.Zs
         work_gdf['gi_p'] = g_local.p_sim
@@ -263,6 +265,46 @@ class AccidentHotspotAnalyzer:
         
         self.grid = work_gdf
         return self.grid
+
+    def plot_hotspots(self, title="Accident Hotspot Analysis (Getis-Ord Gi*)"):
+        color_map = {
+            'Hot Spot (99%)': '#800026',
+            'Hot Spot (95%)': '#FC4E2A',
+            'Hot Spot (90%)': '#FD8D3C',
+            'Not Significant': '#E2E2E2',
+            'Cold Spot (90%)': '#BDD7E7',
+            'Cold Spot (95%)': '#6BAED6',
+            'Cold Spot (99%)': '#2171B5'
+        }
+
+        categories = [
+            'Hot Spot (99%)', 'Hot Spot (95%)', 'Hot Spot (90%)',
+            'Not Significant',
+            'Cold Spot (90%)', 'Cold Spot (95%)', 'Cold Spot (99%)'
+        ]
+        
+        fig, ax = plt.subplots(figsize=(12, 15))
+        
+        self.grid[self.grid['gi_category'] == 'Not Significant'].plot(
+            ax=ax, color='#E2E2E2', edgecolor='white', linewidth=0.01
+        )
+
+        self.grid[self.grid['gi_category'] != 'Not Significant'].plot(
+            column='gi_category',
+            ax=ax,
+            categorical=True,
+            categories=[c for c in categories if c in self.grid['gi_category'].unique()],
+            cmap=mcolors.ListedColormap([color_map[c] for c in categories if c in self.grid['gi_category'].unique()]),
+            legend=True,
+            edgecolor='black',
+            linewidth=0.05,
+            legend_kwds={'loc': 'upper left', 'bbox_to_anchor': (1, 1), 'title': 'Gi* Category'}
+        )
+
+        plt.title(title, fontsize=15)
+        plt.axis('off')
+        plt.tight_layout()
+        plt.show()
 
     def save_result(self, output_path):
         self.grid.to_csv(output_path, index=False)

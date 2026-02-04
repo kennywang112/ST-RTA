@@ -32,9 +32,10 @@ taiwan, _grid_filter = read_taiwan_specific(read_grid=False)
 # hex_grid = hex_grid[hex_grid.intersects(taiwan.unary_union)]
 # hex_grid.to_csv(f'../ComputedData{ComputedDataVersion}/Grid/hex_grid{version}.csv', index=False)
 
+# hex_grid = pd.read_csv(f'../ComputedData{ComputedDataVersion}/Grid/hex_grid{version}.csv')
 # print('Start GI')
 # go = GetisOrdGiAnalysis(hex_grid, taiwan)
-# go.calculate_gi(6, hex_grid, adjacency='knn')
+# go.calculate_gi(best_distance=6, adjacency='queen')
 # grid_gi = go.grid
 # grid_gi.to_csv(f'../ComputedData{ComputedDataVersion}/Grid/grid_gi{version}.csv', index=False)
 

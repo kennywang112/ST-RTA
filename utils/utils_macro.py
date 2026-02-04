@@ -1,12 +1,12 @@
 import json
 import folium
+import libpysal
 import numpy as np
 import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
-from libpysal.weights import KNN
-from esda.moran import Moran_Local, Moran
 from esda.getisord import G_Local
+from esda.moran import Moran_Local, Moran
 from libpysal.weights import Queen, DistanceBand, KNN
 import matplotlib.colors as mcolors
 from sklearn.preprocessing import StandardScaler
@@ -178,8 +178,6 @@ class GetisOrdGiAnalysis:
         adjacency: 'knn', 'queen', or 'distance'
         Returns: GeoDataFrame with 'GiZScore' column added
         """
-
-        # 建立鄰接矩陣（以中心點）
         centroids = self.grid.centroid
         coords = np.array(list(zip(centroids.x, centroids.y)))
 
@@ -190,56 +188,57 @@ class GetisOrdGiAnalysis:
         else:
             w = DistanceBand(coords, threshold=best_distance, binary=True, silence_warnings=True)
 
+        if w.islands:
+            self.grid = self.grid.drop(index=w.islands)
+            return self.calculate_gi(best_distance, adjacency) 
+
+        w = libpysal.weights.util.fill_diagonal(w, 1)
         w.transform = 'r'
         y = self.grid['num_accidents'].astype(np.float64).values
-        g_local = G_Local(y, w)
+        g_local = G_Local(y, w, star=True)
         self.grid['GiZScore'] = g_local.Zs
+        self.grid['GiPValue'] = g_local.p_sim
 
         self.grid['hotspot'] = 'Not Significant'
-        self.grid.loc[self.grid['GiZScore'] > 2.58, 'hotspot'] = 'Hotspot 99%'
-        self.grid.loc[(self.grid['GiZScore'] > 1.96) & (self.grid['GiZScore'] <= 2.58), 'hotspot'] = 'Hotspot 95%'
-        self.grid.loc[(self.grid['GiZScore'] > 1.65) & (self.grid['GiZScore'] <= 1.96), 'hotspot'] = 'Hotspot 90%'
-        self.grid.loc[self.grid['GiZScore'] < -2.58, 'hotspot'] = 'Coldspot 99%'
-        self.grid.loc[(self.grid['GiZScore'] >= -2.58) & (self.grid['GiZScore'] < -1.96), 'hotspot'] = 'Coldspot 95%'
-        self.grid.loc[(self.grid['GiZScore'] >= -1.96) & (self.grid['GiZScore'] < -1.65), 'hotspot'] = 'Coldspot 90%'
+        self.grid.loc[(self.grid['GiPValue'] < 0.01) & (self.grid['GiZScore'] > 0), 'hotspot'] = 'Hotspot 99%'
+        self.grid.loc[(self.grid['GiPValue'] < 0.05) & (self.grid['GiZScore'] > 0) & (self.grid['hotspot'] == 'Not Significant'), 'hotspot'] = 'Hotspot 95%'
+        self.grid.loc[(self.grid['GiPValue'] < 0.10) & (self.grid['GiZScore'] > 0) & (self.grid['hotspot'] == 'Not Significant'), 'hotspot'] = 'Hotspot 90%'
+        self.grid.loc[(self.grid['GiPValue'] < 0.01) & (self.grid['GiZScore'] < 0), 'hotspot'] = 'Coldspot 99%'
+        self.grid.loc[(self.grid['GiPValue'] < 0.05) & (self.grid['GiZScore'] < 0) & (self.grid['hotspot'] == 'Not Significant'), 'hotspot'] = 'Coldspot 95%'
+        self.grid.loc[(self.grid['GiPValue'] < 0.10) & (self.grid['GiZScore'] < 0) & (self.grid['hotspot'] == 'Not Significant'), 'hotspot'] = 'Coldspot 90%'
 
         return self.grid
 
     def plot_gi_map(self):
-        cmap = mcolors.ListedColormap([
-            '#800026',  # dark red - Hotspot 99%
-            '#FC4E2A',  # red - Hotspot 95%
-            '#FD8D3C',  # light red - Hotspot 90%
-            '#d9d9d9',  # grey - Not Significant
-            '#6baed6',  # light blue - Coldspot 90%
-            '#3182bd',  # blue - Coldspot 95%
-            '#08519c'   # dark blue - Coldspot 99%
-        ])
+        color_dict = {
+            'Hotspot 99%': '#800026',
+            'Hotspot 95%': '#FC4E2A',
+            'Hotspot 90%': '#FD8D3C',
+            'Not Significant': '#d9d9d9',
+            'Coldspot 90%': '#6baed6',
+            'Coldspot 95%': '#3182bd',
+            'Coldspot 99%': '#08519c'
+        }
 
-        # 照順序排
         categories = [
-            'Hotspot 99%', 
-            'Hotspot 95%', 
-            'Hotspot 90%', 
+            'Hotspot 99%', 'Hotspot 95%', 'Hotspot 90%', 
             'Not Significant', 
-            'Coldspot 90%', 
-            'Coldspot 95%', 
-            'Coldspot 99%'
+            'Coldspot 90%', 'Coldspot 95%', 'Coldspot 99%'
         ]
 
-        grid = self.grid.to_crs(epsg=4326)  # 把座標轉回跟 folium 一樣
+        grid = self.grid.to_crs(epsg=4326)
 
-        fig, ax = plt.subplots(figsize=(10, 10))
+        fig, ax = plt.subplots(figsize=(10, 12))
         self.taiwan.to_crs(epsg=4326).plot(ax=ax, color='white', edgecolor='black', linewidth=0.5)
 
         grid.plot(
             column='hotspot', 
             categorical=True, 
-            cmap=cmap, 
+            cmap=mcolors.ListedColormap([color_dict[cat] for cat in categories if cat in grid['hotspot'].unique()]),
             legend=True, 
-            edgecolor='grey', 
-            linewidth=0.2, 
-            alpha=0.6,
+            edgecolor='white',
+            linewidth=0.01, 
+            alpha=0.8,
             ax=ax,
             categories=categories,
             legend_kwds={

@@ -1,5 +1,3 @@
-import json
-import folium
 import numpy as np
 import pandas as pd
 import geopandas as gpd
@@ -81,7 +79,7 @@ def get_grid(data, specific_area=None, hex_size=0.01, threshold=0):
     """
     # hexagon 大小 (degree)
     # 台灣約395,144 km
-    hex_size = 1  # 度數，1 度 ≈ 111 公里
+    hex_size = 1 度
     """
 
     if isinstance(data, gpd.GeoDataFrame) and 'geometry' in data.columns:
