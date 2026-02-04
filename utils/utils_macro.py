@@ -5,7 +5,8 @@ import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
 from libpysal.weights import KNN
-from esda.moran import Moran_Local, G_Local, Moran
+from esda.moran import Moran_Local, Moran
+from esda.getisord import G_Local
 from libpysal.weights import Queen, DistanceBand, KNN
 import matplotlib.colors as mcolors
 from sklearn.preprocessing import StandardScaler
@@ -201,6 +202,8 @@ class GetisOrdGiAnalysis:
         self.grid.loc[self.grid['GiZScore'] < -2.58, 'hotspot'] = 'Coldspot 99%'
         self.grid.loc[(self.grid['GiZScore'] >= -2.58) & (self.grid['GiZScore'] < -1.96), 'hotspot'] = 'Coldspot 95%'
         self.grid.loc[(self.grid['GiZScore'] >= -1.96) & (self.grid['GiZScore'] < -1.65), 'hotspot'] = 'Coldspot 90%'
+
+        return self.grid
 
     def plot_gi_map(self):
         cmap = mcolors.ListedColormap([

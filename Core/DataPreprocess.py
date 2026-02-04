@@ -14,7 +14,8 @@ os.chdir(analyze_path)
 
 import pandas as pd
 import geopandas as gpd
-from utils.utils import get_grid, read_data, calculate_gi, read_taiwan_specific
+from utils.utils import get_grid, read_data, read_taiwan_specific
+from utils.utils_macro import GetisOrdGiAnalysis
 
 version = 'V1'
 ComputedDataVersion = 'V2'
@@ -32,7 +33,9 @@ taiwan, _grid_filter = read_taiwan_specific(read_grid=False)
 # hex_grid.to_csv(f'../ComputedData{ComputedDataVersion}/Grid/hex_grid{version}.csv', index=False)
 
 # print('Start GI')
-# grid_gi = calculate_gi(6, hex_grid, adjacency='knn')
+# go = GetisOrdGiAnalysis(hex_grid, taiwan)
+# go.calculate_gi(6, hex_grid, adjacency='knn')
+# grid_gi = go.grid
 # grid_gi.to_csv(f'../ComputedData{ComputedDataVersion}/Grid/grid_gi{version}.csv', index=False)
 
 """

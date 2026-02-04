@@ -142,6 +142,8 @@ def get_grid(data, specific_area=None, hex_size=0.01, threshold=0):
     hex_grid = gpd.GeoDataFrame(geometry=hexagons_shifted, crs='EPSG:4326')
     hex_grid = hex_grid.to_crs(gdf.crs)
 
+    gdf = gdf.drop(columns=['index_right', 'index_left'], errors='ignore')
+    hex_grid = hex_grid.drop(columns=['index_right', 'index_left'], errors='ignore')
     # 將事故點分配到 hexagon
     joined = gpd.sjoin(gdf, hex_grid, how='left', predicate='within')
 
