@@ -17,7 +17,10 @@ import geopandas as gpd
 from utils.utils import get_grid, read_data, read_taiwan_specific
 from utils.utils_macro import GetisOrdGiAnalysis
 
-version = 'V1'
+# v1 for version 1 is the old version that uses knn neighbor and GI
+# v2 uses Queen and GI*
+version = 'V2' 
+
 ComputedDataVersion = 'V2'
 
 """
