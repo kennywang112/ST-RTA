@@ -96,14 +96,14 @@ feature_name_map = {
     '車道劃分設施-分道設施-快慢車道間名稱': 'Lane division facility - separation between fast and slow lanes',
     '車道劃分設施-分道設施-路面邊線名稱': 'Lane division facility - edge line marking',
 
-    '事故類型及型態子類別名稱': 'Accident type and pattern (subcategory)',
-    '車道劃分設施-分向設施子類別名稱': 'Lane division facility - directional separation (subcategory)',
-    '道路型態子類別名稱': 'Road type (subcategory)',
+    '事故類型及型態子類別名稱': 'Accident type and pattern',
+    '車道劃分設施-分向設施子類別名稱': 'Lane division facility - directional separation',
+    '道路型態子類別名稱': 'Road type',
 
-    '速限-第1當事者': 'Speed limit (Party 1)',
-    '道路類別-第1當事者-名稱': 'Road category (Party 1)',
+    '速限-第1當事者': 'Speed limit',
+    '道路類別-第1當事者-名稱': 'Road category',
 
-    '肇因研判子類別名稱-主要': 'Primary cause determination (subcategory)'
+    '肇因研判子類別名稱-主要': 'Primary cause determination'
 }
 
 category_value_map = {
@@ -322,6 +322,10 @@ category_value_map = {
         '未待車輛停妥而上下車': 'Boarding/alighting before vehicle fully stopped',
         '違反禁止會車標誌': 'Violation of no meeting sign',
         '未依法令授權指揮交通或指揮不當': 'Failure to follow authorized\n traffic direction or improper command'
+    },
+
+    '速限-第1當事者': {
+        '': ''
     }
 }
 
