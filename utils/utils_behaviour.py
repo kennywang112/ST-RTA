@@ -240,36 +240,44 @@ def draw_bn_plotly(model, layout_algo="", en=False, width=1000, height=500, seed
     return fig
 
 def cpd_add_n(parent, child, model, data, cpd=True, threshold=50):
+    """
+    Add counts for the conditional probability distribution (CPD) or posterior distribution.
+    """
+
+    vb_all = parent.copy()
+    vb_all.append(child)
+    
+    # 計算 N(Parent, Child), PD: P(child | parent)
+    counts = (data.groupby(vb_all, dropna=False).size().reset_index(name='n_joint'))
+    df = model.merge(counts, on=vb_all, how='left')
+    df['n_joint'] = df['n_joint'].fillna(0)
 
     if cpd:
-        # CPD: P(child | parent) -> counts 也用 parent+child
-        vb_all = parent.copy()
-        vb_all.append(child)
-        counts = (data.groupby(vb_all, dropna=False).size().reset_index(name='n'))
-
-        dfprob_cause_counts = (
-            model
-            .merge(counts, on=vb_all, how='left')
-            .sort_values('p', ascending=False)
-        )
+        df['n'] = df['n_joint']
     else:
         # Posterior: P(parent | child=v) -> data 已固定 child，counts 只用 parent
-        counts = (data.groupby(parent, dropna=False)
-                       .size()
-                       .reset_index(name='n'))
+        total_child_counts = data.groupby(child).size().reset_index(name='n_child_total')
+        df = df.merge(total_child_counts, on=child, how='left')
+        df['n'] = df['n_joint']
+        # P(Parent | Child) = N(Parent, Child) / N(Child)
+        df['p_diagnostic'] = df['n_joint'] / df['n_child_total']
+        df.rename(columns={'p': 'p_model_forward'}, inplace=True)
 
-        dfprob_cause_counts = (
-            model
-            .merge(counts, on=parent, how='left')
-            .sort_values('p', ascending=False)
-        )
+    filtered = df[df['n'] >= threshold].copy()
 
-    dfprob_cause_counts['n'] = dfprob_cause_counts['n'].fillna(0)
-    filtered = dfprob_cause_counts[dfprob_cause_counts['n'] >= threshold].copy()
-
-    filtered['p'] = round(filtered['p'], 4)
+    cols_to_round = ['p', 'p_model_forward', 'p_diagnostic']
+    for col in cols_to_round:
+        if col in filtered.columns:
+            filtered[col] = round(filtered[col], 4)
+            
     filtered['n'] = filtered['n'].astype(int)
 
+    sort_col = 'p_diagnostic' if (not cpd) else 'p'
+    if 'p_model_forward' in filtered.columns: sort_col = 'p_model_forward'
+
+    if sort_col in filtered.columns:
+        filtered = filtered.sort_values(sort_col, ascending=False)
+        
     return filtered
 
 def filter_cpd_for_hotspot(filtered):
