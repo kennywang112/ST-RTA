@@ -13,37 +13,47 @@ from sklearn.preprocessing import StandardScaler
 from matplotlib.font_manager import FontProperties
 
 class LocalMoranAnalysis:
-    def __init__(self, hex_grid, taiwan, k=6):
+    def __init__(self, grid, taiwan):
         """
         初始化 Local Moran Analysis 類別
-        :param hex_grid: GeoDataFrame，包含六邊形網格和事故數量
+        :param grid: GeoDataFrame，包含六邊形網格和事故數量
         :param taiwan: GeoDataFrame，台灣地圖資料
-        :param k: int，KNN 的鄰居數量
         """
-        self.hex_grid = hex_grid
+        self.grid = grid
         self.taiwan = taiwan
-        self.k = k
         self.moran_local = None
-        self.y = None
-        self.w_knn = None
 
-    def calculate_local_moran(self):
+    def calculate_local_moran(self, best_distance, adjacency=None):
         """
-        計算 Local Moran's I 和相關統計
+        best_distance: when adjacency is 'knn', it indicates the number of neighbors k, 
+                        if adjacency is 'distance', it indicates the distance threshold
+        grid: GeoDataFrame with 'num_accidents' column
+        adjacency: 'knn', 'queen', or 'distance'
+        Returns: GeoDataFrame with 'GiZScore' column added
         """
-        self.hex_grid['centroid'] = self.hex_grid.geometry.centroid
-        coords = np.vstack((self.hex_grid['centroid'].x, self.hex_grid['centroid'].y)).T
+        self.grid['centroid'] = self.grid.geometry.centroid
+        coords = np.vstack((self.grid['centroid'].x, self.grid['centroid'].y)).T
 
-        # KNN 權重
-        self.w_knn = KNN.from_array(coords, k=self.k)
-        self.w_knn.transform = 'r'  # row-standardized
+        if adjacency=='knn':
+            self.w = KNN.from_array(coords, k=best_distance)
+        elif adjacency=='queen':
+            self.w = Queen.from_dataframe(self.grid)
+        else:
+            self.w = DistanceBand(coords, threshold=best_distance, binary=True, silence_warnings=True)
 
-        self.y = self.hex_grid['num_accidents'].values
-        self.moran_local = Moran_Local(self.y, self.w_knn)
+        if self.w.islands:
+            self.grid = self.grid.drop(index=self.w.islands)
+            return self.calculate_local_moran(best_distance, adjacency)
 
-        self.hex_grid['local_I'] = self.moran_local.Is
-        self.hex_grid['local_p'] = self.moran_local.p_sim
-        self.hex_grid['significant'] = (self.hex_grid['local_p'] < 0.05)
+        self.w.transform = 'r'  # row-standardized
+        self.y = self.grid['num_accidents'].astype(np.float64).values
+        self.moran_local = Moran_Local(self.y, self.w)
+
+        self.grid['local_I'] = self.moran_local.Is
+        self.grid['local_p'] = self.moran_local.p_sim
+        self.grid['significant'] = (self.grid['local_p'] < 0.05)
+
+        return self.grid
 
     def plot_lisa(self):
         """
@@ -63,7 +73,7 @@ class LocalMoranAnalysis:
             else:
                 quadrant.append('Not Significant')
 
-        self.hex_grid['quadrant'] = quadrant
+        self.grid['quadrant'] = quadrant
 
         # 畫圖
         fig, ax = plt.subplots(figsize=(6, 10))
@@ -78,7 +88,7 @@ class LocalMoranAnalysis:
         }
 
         for quad, color in colors.items():
-            subset = self.hex_grid[self.hex_grid['quadrant'] == quad]
+            subset = self.grid[self.grid['quadrant'] == quad]
             ax.scatter(
                 subset['centroid'].x, 
                 subset['centroid'].y, 
@@ -100,12 +110,12 @@ class LocalMoranAnalysis:
         繪製 Moran Scatter Plot
         """
         # 原始值
-        y = self.hex_grid['num_accidents'].values.reshape(-1, 1)
+        y = self.grid['num_accidents'].values.reshape(-1, 1)
 
         # 標準化
         scaler = StandardScaler()
         z = scaler.fit_transform(y).flatten()        # 自己的 Z-score
-        wz = self.w_knn.sparse.dot(z)                # 鄰居的 Z-score 加權平均
+        wz = self.w.sparse.dot(z)                # 鄰居的 Z-score 加權平均
 
         fig, ax = plt.subplots(figsize=(8, 8))
 
@@ -148,7 +158,7 @@ class LocalMoranAnalysis:
             'Low-High': '#65a8f0',
             'Not Significant': '#c9c2c1'
         }
-        grid_wgs = self.hex_grid.to_crs(epsg=4326)
+        grid_wgs = self.grid.to_crs(epsg=4326)
         grid_wgs = grid_wgs[['quadrant', 'num_accidents', 'geometry']].copy()
         grid_json = json.loads(grid_wgs.to_json())
         center = [grid_wgs.geometry.centroid.y.mean(), grid_wgs.geometry.centroid.x.mean()]
@@ -178,8 +188,9 @@ class GetisOrdGiAnalysis:
         adjacency: 'knn', 'queen', or 'distance'
         Returns: GeoDataFrame with 'GiZScore' column added
         """
-        centroids = self.grid.centroid
-        coords = np.array(list(zip(centroids.x, centroids.y)))
+        self.grid['centroid'] = self.grid.geometry.centroid
+        coords = np.vstack((self.grid['centroid'].x, self.grid['centroid'].y)).T
+        # coords = np.array(list(zip(centroids.x, centroids.y)))
 
         if adjacency=='knn':
             w = KNN.from_array(coords, k=best_distance)
@@ -192,10 +203,8 @@ class GetisOrdGiAnalysis:
             self.grid = self.grid.drop(index=w.islands)
             return self.calculate_gi(best_distance, adjacency) 
 
-        w = libpysal.weights.util.fill_diagonal(w, 1)
-        w.transform = 'r'
         y = self.grid['num_accidents'].astype(np.float64).values
-        g_local = G_Local(y, w, star=True)
+        g_local = G_Local(y, w, transform='R', star=True)
         self.grid['GiZScore'] = g_local.Zs
         self.grid['GiPValue'] = g_local.p_sim
 
