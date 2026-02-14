@@ -53,8 +53,6 @@ class LocalMoranAnalysis:
         self.grid['local_p'] = self.moran_local.p_sim
         self.grid['significant'] = (self.grid['local_p'] < 0.05)
 
-        return self.grid
-
     def plot_lisa(self):
         """
         繪製 LISA 群組圖
@@ -111,12 +109,13 @@ class LocalMoranAnalysis:
         """
         # 原始值
         y = self.grid['num_accidents'].values.reshape(-1, 1)
-
-        # 標準化
         scaler = StandardScaler()
-        z = scaler.fit_transform(y).flatten()        # 自己的 Z-score
-        wz = self.w.sparse.dot(z)                # 鄰居的 Z-score 加權平均
+        z = scaler.fit_transform(y).flatten() # 自己的 Z-score
+        wz = self.w.sparse.dot(z) # 鄰居的 Z-score 加權平均
 
+        self.grid['moran_std_val'] = z
+        self.grid['moran_lag_val'] = wz
+        
         fig, ax = plt.subplots(figsize=(8, 8))
 
         plt.axhline(0, color='k', linestyle='--')
@@ -125,19 +124,18 @@ class LocalMoranAnalysis:
         colors = []
         for zi, wzi in zip(z, wz):
             if zi > 0 and wzi > 0:
-                colors.append('#8c1004')          # High-High
+                colors.append('#8c1004') # High-High
             elif zi < 0 and wzi < 0:
-                colors.append('#04468c')         # Low-Low
+                colors.append('#04468c') # Low-Low
             elif zi > 0 and wzi < 0:
-                colors.append('#f06e62')         # High-Low
+                colors.append('#f06e62') # High-Low
             elif zi < 0 and wzi > 0:
-                colors.append('#65a8f0')         # Low-High
+                colors.append('#65a8f0') # Low-High
             else:
                 colors.append('#c9c2c1')
 
         ax.scatter(z, wz, c=colors, s=10, alpha=0.7)
 
-        # 回歸線 (slope = global Moran's I)
         b, a = np.polyfit(z, wz, 1)
         xfit = np.linspace(min(z), max(z), 100)
         yfit = a + b * xfit
@@ -148,6 +146,8 @@ class LocalMoranAnalysis:
         plt.title('Moran Scatter Plot (KNN LISA, Standardized)')
         plt.legend()
         plt.show()
+
+        return self.grid
 
     def plot_lisa_folium(self):
 
