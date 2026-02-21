@@ -1,10 +1,8 @@
 import pandas as pd
 import numpy as np
 from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import StandardScaler
-
-from sklearn.preprocessing import PolynomialFeatures
 from imblearn.under_sampling import RandomUnderSampler
+from sklearn.preprocessing import StandardScaler, PolynomialFeatures
 
 
 def get_interaction(X, for_poly=[], interaction_type='multiply'):

@@ -40,9 +40,7 @@ def get_importance(model, df, specific_col=None):
 
     return importance_ungrouped, grouped
 
-def extract_features(
-        grid, combined_data, select_group, rows
-        ):
+def extract_features(grid, combined_data, select_group, rows):
 
     indices = grid['accident_indices'].iloc[rows] # return list of original data index
     sample = combined_data.iloc[indices]
@@ -93,7 +91,21 @@ def model_preprocess(
     """
     all_features_df: dataframe including all features and target 'hotspot'
     grid_filter: dataframe including 'COUNTYNAME' if needed
+    for_poly: list of features for polygon interaction
     dim: '2way_poly', '2way', '3way', 'mixed'
+    base_road: list of base road features
+    base_vehicle: list of base vehicle features
+    base_person: list of base person features
+    interaction_type: type of interaction to create
+
+    Return:
+    X_train: training features
+    X_test: testing features
+    y_train: training labels
+    y_test: testing labels
+    X_resampled_test: resampled testing features
+    y_resampled_test: resampled testing labels
+    le: label encoder
     """
     # with county town
     if grid_filter is not None:
@@ -370,9 +382,14 @@ def build_pair_interaction_groups(columns, base_sep="_", inter_pattern=r"\s*x\s*
 
     return dict(pair_groups)
 
-def PI_ML(
-        model, X_df, y, groups=None, n_repeats=5, random_state=42
-        ):
+def PI_ML(model, X_df, y, groups=None, n_repeats=5, random_state=42):
+    """
+    Permutation Importance for Machine Learning models.
+
+    Return:
+    base: permutation importance score for the model
+    out: DataFrame containing the importance scores for each feature
+    """
 
     X_arr = X_df.to_numpy(copy=True)
     name_to_idx = {c: i for i, c in enumerate(X_df.columns)}
@@ -412,6 +429,13 @@ def PI_ML(
     return base, out
 
 def PI_NN(model, X_df, y, groups=None, n_repeats=5, random_state=42):
+    """
+    Permutation Importance for Machine Learning models.
+
+    Return:
+    base: permutation importance score for the model
+    out: DataFrame containing the importance scores for each feature
+    """
 
     X_arr = X_df.to_numpy(copy=True)
     name_to_idx = {c: i for i, c in enumerate(X_df.columns)}
@@ -488,9 +512,9 @@ def hitrate_data(resample_X, resample_y, model_y):
 
 def print_results(proba_test, classes, y_resampled_test):
     """
-    proba_test: 預測的概率
-    classes: 類別名稱
-    y_resampled_test: 重抽樣後的測試標籤
+    proba_test: predicted probabilities
+    classes: class names
+    y_resampled_test: resampled test labels
     """
     le = LabelEncoder()
 

@@ -567,3 +567,128 @@ cause_mapping = {
         "相關跡證不足且無具體影像紀錄，當事人各執一詞，經分析後無法釐清肇事原因",
     ]
 }
+
+####################### This is for model V5
+column_translation = {
+    # --- 1. 來自 gis_osm_roads_free_1.shp (roads) ---
+    'road_len_motorway': '國道(高速公路)長度(roads)',
+    'road_len_motorway_link': '國道匝道長度(roads)',
+    'road_len_trunk': '快速道路長度(roads)',
+    'road_len_trunk_link': '快速道路匝道長度(roads)',
+    'road_len_primary': '省道(主要幹道)長度(roads)',
+    'road_len_primary_link': '省道匝道長度(roads)',
+    'road_len_secondary': '縣道(次要幹道)長度(roads)',
+    'road_len_secondary_link': '縣道匝道長度(roads)',
+    'road_len_tertiary': '鄉道(一般道路)長度(roads)',
+    'road_len_tertiary_link': '鄉道匝道長度(roads)',
+    'road_len_unclassified': '無分級道路長度(roads)',
+    'road_len_residential': '住宅區街道(巷弄)長度(roads)',
+    'road_len_living_street': '人車共用道(生活街道)長度(roads)',
+    'road_len_service': '服務道路長度(roads)',
+    'road_len_pedestrian': '行人徒步區長度(roads)',
+    'road_len_track': '產業道路長度(roads)',
+    'road_len_busway': '公車專用道長度(roads)',
+    'road_len_cycleway': '自行車道長度(roads)',
+    'road_len_footway': '人行道長度(roads)',
+    'road_len_path': '小徑長度(roads)',
+    'road_len_steps': '階梯長度(roads)',
+    'road_len_bridleway': '馬道長度(roads)',
+    'road_len_unknown': '未知類型道路長度(roads)',
+    
+    # 產業道路細分 (roads)
+    'road_len_track_grade1': '產業道路_硬鋪面(roads)',
+    'road_len_track_grade2': '產業道路_混合鋪面(roads)',
+    'road_len_track_grade3': '產業道路_軟混合(roads)',
+    'road_len_track_grade4': '產業道路_植被壓實(roads)',
+    'road_len_track_grade5': '產業道路_鬆軟泥土(roads)',
+
+    # --- 2. 來自 gis_osm_traffic_free_1.shp (traffic) ---
+    'count_traffic_signals': '交通號誌(紅綠燈)數量(traffic)',
+    'count_stop': '停車標誌數量(traffic)',
+    'count_crossing': '行人穿越道(斑馬線)數量(traffic)',
+    'count_speed_camera': '測速照相機數量(traffic)',
+    'count_parking': '路邊停車點數量(traffic)',
+    'count_motorway_junction': '交流道數量(traffic)',
+
+    # --- 3. 來自 gis_osm_transport_free_1.shp (transport) ---
+    'count_bus_stop': '公車站牌數量(transport)',
+    'count_train_station': '火車站數量(transport)',
+
+    # --- 4. 來自 gis_osm_pois_free_1.shp (pois) ---
+    # 'count_alcohol': '飲酒場所數量(pois)',
+    # 'count_convenience': '便利商店數量(pois)',
+    # 'count_school': '學校數量(pois)',
+
+    # --- 5. 來自 外部 CSV 資料 (local data) ---
+    'count_mrt': '捷運站出口數量(mrt)',
+    'count_youbike': 'YouBike站點數量(youbike)',
+    'count_parking_official': '公有路外停車場數量(parkinglot)',
+
+    'count_intersection': '交叉口數量(roads)',
+    'count_spd_points': '速差點數量(roads)',
+
+    # --- 6. 模型結果 ---
+    'gi_category': 'gi_category'
+}
+
+####################### This is for model V6
+
+column_priorities = {
+    '車道劃分設施-分道設施-快車道或一般車道間名稱': {
+        '未繪設車道線': 1,
+        '禁止變換車道線(無標記)': 1,
+        '禁止變換車道線(附標記)': 1,
+        '車道線(無標記)': 1,
+        '車道線(附標記)': 1
+    },
+    '車道劃分設施-分道設施-快慢車道間名稱': {
+        '未繪設快慢車道分隔線': 1,
+        '快慢車道分隔線': 1,
+        '窄式快慢車道分隔島(無柵欄)': 1,
+        '窄式快慢車道分隔島(附柵欄)': 1,
+        '寬式快慢車道分隔島(50公分以上)': 1
+    },
+    '車道劃分設施-分道設施-路面邊線名稱': {
+        '無': 1,
+        '有': 1
+    },
+
+    '車道劃分設施-分向設施大類別名稱': {
+        '無': 1,
+        '行車分向線': 1,
+        '雙向禁止超車線': 1,
+        '單向禁止超車線': 1,
+        '中央分向島': 1
+    },
+    '事故類型及型態子類別名稱': {
+        '對撞': 1,
+        '衝出路外': 1,
+        '路口交岔撞': 1,
+        '穿越道路中': 1,
+        '撞路樹': 1,
+        '撞護欄(樁)': 1,
+        '自撞': 1,
+        '追撞': 1,
+        '其他': 1
+    },
+    '道路型態子類別名稱': {
+        '彎曲路及附近': 1,
+        '坡路': 1,
+        '多岔路': 1,
+        '三岔路': 1,
+        '四岔路': 1,
+        '圓環': 1,
+        '隧道': 1,
+        '涵洞': 1,
+        '橋樑': 1,
+        '高架道路': 1,
+        '直路': 1,
+        '其他': 1
+    },
+    '號誌-號誌種類名稱': {
+        '無號誌': 1,
+        '閃光號誌': 1,
+        '行車管制號誌': 1,
+        '行車管制號誌(附設行人專用號誌)': 1
+    }
+}

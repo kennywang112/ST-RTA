@@ -1,4 +1,5 @@
 # This is for the lane in Mapper
+from utils_tda import cond_prob_mixed
 
 books = { 
     ('hotspot', '車道劃分設施-分道設施-路面邊線名稱_有'): {

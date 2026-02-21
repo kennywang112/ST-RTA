@@ -1,14 +1,11 @@
+import numpy as np
 import torch
 import torch.nn as nn
 from torch.utils.data import TensorDataset, DataLoader
-import numpy as np
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import confusion_matrix, classification_report, roc_auc_score, accuracy_score, f1_score, recall_score
-
-
 device = torch.device("mps" if torch.backends.mps.is_available() else "cpu")
 
-# 1. 定義模型結構
 class BinaryMLP(nn.Module):
     def __init__(self, in_dim, num_classes=2, drop=0.1):
         super().__init__()

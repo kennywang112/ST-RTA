@@ -1,10 +1,12 @@
-import geopandas as gpd
-import pandas as pd
+import libpysal
 import numpy as np
-from shapely.geometry import Polygon, box
+import pandas as pd
+import geopandas as gpd
+
 from shapely import wkt
 from esda.getisord import G_Local
-import libpysal
+from shapely.geometry import Polygon, box
+
 import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
 

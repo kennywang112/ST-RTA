@@ -1,7 +1,9 @@
+import ast
 import numpy as np
 import pandas as pd
 import geopandas as gpd
 import matplotlib.pyplot as plt
+from shapely import wkt
 from shapely.geometry import Polygon
 from shapely.geometry import box
 
@@ -31,10 +33,6 @@ def read_data():
                     (combined_data['當事者事故發生時年齡'] <= 0), '當事者事故發生時年齡'] = median_age
 
     return combined_data
-
-import ast
-import geopandas as gpd
-from shapely import wkt
 
 def read_taiwan_specific(read_grid=False):
     taiwan = gpd.read_file('../Data/OFiles_9e222fea-bafb-4436-9b17-10921abc6ef2/TOWN_MOI_1140318.shp')

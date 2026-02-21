@@ -15,9 +15,10 @@ from matplotlib.font_manager import FontProperties
 class LocalMoranAnalysis:
     def __init__(self, grid, taiwan):
         """
-        初始化 Local Moran Analysis 類別
-        :param grid: GeoDataFrame，包含六邊形網格和事故數量
-        :param taiwan: GeoDataFrame，台灣地圖資料
+        This class performs Local Moran's I analysis on a given grid and provides methods to visualise the results.
+
+        grid: GeoDataFrame with 'num_accidents' column
+        taiwan: GeoDataFrame with Taiwan's boundaries
         """
         self.grid = grid
         self.taiwan = taiwan
@@ -29,6 +30,7 @@ class LocalMoranAnalysis:
                         if adjacency is 'distance', it indicates the distance threshold
         grid: GeoDataFrame with 'num_accidents' column
         adjacency: 'knn', 'queen', or 'distance'
+
         Returns: GeoDataFrame with 'GiZScore' column added
         """
         self.grid['centroid'] = self.grid.geometry.centroid
@@ -182,10 +184,10 @@ class GetisOrdGiAnalysis:
 
     def calculate_gi(self, best_distance, adjacency=None):
         """
-        best_distance: when adjacency is 'knn', it indicates the number of neighbors k, 
-                        if adjacency is 'distance', it indicates the distance threshold
+        best_distance: when adjacency is 'knn', it indicates the number of neighbors k, if adjacency is 'distance', it indicates the distance threshold
         grid: GeoDataFrame with 'num_accidents' column
         adjacency: 'knn', 'queen', or 'distance'
+
         Returns: GeoDataFrame with 'GiZScore' column added
         """
         self.grid['centroid'] = self.grid.geometry.centroid
@@ -417,11 +419,7 @@ def attribute_in_city(combined_data, hot, col, countycity_dct, feature_name_map,
 # Not used anymore
 def incremental_spatial_autocorrelation(gdf, value_col, min_dist=1000, max_dist=50000, step=1000):
     """
-    gdf: CRS (meter)。
-    value_col: 你要做 spatial autocorrelation 的欄位，如num_accidents
-    min_dist: 最小距離 (公尺)
-    max_dist: 最大距離 (公尺)
-    step: 間隔 (公尺)
+    Perform incremental spatial autocorrelation analysis using distance bands.
     """
 
     thresholds = np.arange(min_dist, max_dist + step, step)
@@ -449,11 +447,7 @@ def incremental_spatial_autocorrelation(gdf, value_col, min_dist=1000, max_dist=
 
 def incremental_spatial_autocorrelation_knn(gdf, value_col, min_k=2, max_k=50, step=1):
     """
-    gdf: CRS (meter)。
-    value_col: 你要做 spatial autocorrelation 的欄位，如 num_accidents。
-    min_k: 最小鄰居數。
-    max_k: 最大鄰居數。
-    step: 每次增加幾個鄰居。
+    Perform incremental spatial autocorrelation analysis using KNN.
     """
 
     ks = np.arange(min_k, max_k + step, step)
