@@ -1,6 +1,5 @@
 import json
 import folium
-import libpysal
 import numpy as np
 import pandas as pd
 import seaborn as sns
